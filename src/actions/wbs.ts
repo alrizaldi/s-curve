@@ -3,11 +3,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { WBSItem, WBSItemFormValues, WBSItemStatus } from '@/types';
 import { revalidatePath } from 'next/cache';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Fetch all WBS items for a specific project
  */
 export async function getWBSItems(projectId: string): Promise<WBSItem[]> {
+  console.log('[getWBSItems] Starting to fetch WBS items for project:', projectId);
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -18,18 +20,26 @@ export async function getWBSItems(projectId: string): Promise<WBSItem[]> {
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('Error fetching WBS items:', error);
+    console.error('[getWBSItems] Error fetching WBS items:', error);
     throw new Error('Failed to fetch WBS items');
   }
 
-  // Convert date strings from Supabase to Date objects
-  return (data || []).map(item => ({
-    ...item,
-    planned_start: new Date(item.planned_start),
-    planned_end: new Date(item.planned_end),
-    created_at: new Date(item.created_at),
-    updated_at: new Date(item.updated_at),
-  })) as WBSItem[];
+  console.log('[getWBSItems] Retrieved raw data count:', data?.length || 0);
+  
+  // Convert date strings from Supabase to Date objects, handling potential null values
+  const convertedData = (data || []).map(item => {
+    console.log('[getWBSItems] Converting item:', item.id, 'with dates - start:', item.planned_start, 'end:', item.planned_end);
+    return ({
+      ...item,
+      planned_start: item.planned_start ? new Date(item.planned_start) : new Date(),
+      planned_end: item.planned_end ? new Date(item.planned_end) : new Date(),
+      created_at: item.created_at ? new Date(item.created_at) : new Date(),
+      updated_at: item.updated_at ? new Date(item.updated_at) : new Date(),
+    }) as WBSItem;
+  });
+  
+  console.log('[getWBSItems] Converted data count:', convertedData.length);
+  return convertedData;
 }
 
 /**
@@ -40,13 +50,22 @@ export async function createWBSItem(
   itemData: WBSItemFormValues
 ): Promise<WBSItem> {
   const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    console.error('Authentication error:', userError);
+    throw new Error('User not authenticated');
+  }
 
   const { data, error } = await supabase
     .from('WBSItem')
     .insert([
       {
+        id: uuidv4(), // Generate a UUID for the new WBS item
         ...itemData,
         project_id: projectId,
+        created_at: new Date(),
+        updated_at: new Date(),
       },
     ])
     .select()
@@ -77,10 +96,11 @@ export async function updateWBSItem(
   remarks?: string
 ): Promise<WBSItem> {
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  if (!session) {
-    throw new Error('Unauthorized');
+  if (userError || !user) {
+    console.error('Authentication error:', userError);
+    throw new Error('User not authenticated');
   }
 
   // If we are updating progress, create a progress log (only if this is a leaf node)
@@ -108,7 +128,7 @@ export async function updateWBSItem(
           wbs_item_id: id,
           progress: itemData.progress,
           remarks: remarks || 'Progress updated',
-          created_by: session.user.id,
+          created_by: user.id,
         },
       ]);
 
@@ -119,7 +139,7 @@ export async function updateWBSItem(
 
   const { data, error } = await supabase
     .from('WBSItem')
-    .update(itemData)
+    .update({...itemData, updated_at: new Date()})
     .eq('id', id)
     .select()
     .single();
@@ -144,18 +164,40 @@ export async function updateWBSItem(
  */
 export async function deleteWBSItem(projectId: string, id: string): Promise<void> {
   const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    console.error('Authentication error:', userError);
+    throw new Error('User not authenticated');
+  }
+
+  // Verify that the WBS item belongs to the project and user has permission
+  const { data: wbsItem, error: fetchError } = await supabase
+    .from('WBSItem')
+    .select('project_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !wbsItem) {
+    console.error('Error fetching WBS item for verification:', fetchError);
+    throw new Error('WBS item not found or access denied');
+  }
+
+  if (wbsItem.project_id !== projectId) {
+    throw new Error('Access denied: WBS item does not belong to the specified project');
+  }
 
   // Recursively delete children WBS items (since Supabase onDelete Cascade will handle it, or we handle it here if Cascade is not set in DB)
   // Our Prisma schema specifies `onDelete: Cascade` on the project relation, but for parent/children relationships
   // let's make sure children are deleted.
   // First, fetch all items to find children
-  const { data: allItems, error: fetchError } = await supabase
+  const { data: allItems, error: fetchError2 } = await supabase
     .from('WBSItem')
     .select('id, parent_id')
     .eq('project_id', projectId);
 
-  if (fetchError) {
-    console.error('Error fetching items for deletion:', fetchError);
+  if (fetchError2) {
+    console.error('Error fetching items for deletion:', fetchError2);
   }
 
   const findChildrenIds = (parentId: string): string[] => {

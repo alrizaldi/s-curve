@@ -61,34 +61,59 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
 
   // Load project details and WBS items
   const loadData = async () => {
+    console.log('[WBSPage][LoadData] Starting to load data for project:', projectId);
     try {
       setLoading(true);
+      console.log('[WBSPage][LoadData] Calling getProjects and getWBSItems...');
       const [projectsList, wbsList] = await Promise.all([
         getProjects(),
         getWBSItems(projectId)
       ]);
+      console.log('[WBSPage][LoadData] Data retrieved - Projects count:', projectsList.length, 'WBS items count:', wbsList.length);
+      
       const foundProject = projectsList.find(p => p.id === projectId);
+      console.log('[WBSPage][LoadData] Found project:', foundProject ? foundProject.name : 'NOT FOUND');
+      
       if (foundProject) setProject(foundProject);
+      console.log('[WBSPage][LoadData] Setting WBS items:', wbsList);
       setWbsItems(wbsList);
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('[WBSPage][LoadData] Failed to load data:', error);
     } finally {
+      console.log('[WBSPage][LoadData] Setting loading to false');
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    console.log('[WBSPage][Effect] Running effect for projectId:', projectId);
     loadData();
   }, [projectId]);
 
   // Check if an item is a parent node (has children)
   const isParent = (itemId: string) => {
-    return wbsItems.some(item => item.parent_id === itemId);
+    console.log('[WBSPage][isParent] Checking if item has children:', itemId);
+    const hasChildren = wbsItems.some(item => item.parent_id === itemId || (itemId === 'root' && (item.parent_id === null || item.parent_id === undefined)));
+    console.log('[WBSPage][isParent] Result:', hasChildren);
+    return hasChildren;
   };
 
   // Get children of a WBS item
-  const getChildren = (itemId: string | undefined) => {
-    return wbsItems.filter(item => item.parent_id === itemId);
+  const getChildren = (itemId: string | undefined | null) => {
+    console.log('[WBSPage][getChildren] Getting children for item:', itemId);
+    // For root level (no parent), find items where parent_id is null
+    // For child level, find items where parent_id matches the given ID
+    const children = wbsItems.filter(item => {
+      if (itemId === undefined || itemId === null) {
+        // Looking for root-level items (those with no parent)
+        return item.parent_id === null || item.parent_id === undefined;
+      } else {
+        // Looking for children of a specific parent
+        return item.parent_id === itemId;
+      }
+    });
+    console.log('[WBSPage][getChildren] Found children count:', children.length);
+    return children;
   };
 
   // Toggle Collapse/Expand
@@ -222,8 +247,10 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
   };
 
   // Recursive Tree Renderer
-  const renderTreeNodes = (parentId: string | undefined, depth = 0) => {
+  const renderTreeNodes = (parentId: string | undefined | null, depth = 0) => {
+    console.log('[WBSPage][renderTreeNodes] Rendering nodes for parentId:', parentId, 'at depth:', depth);
     const nodes = getChildren(parentId);
+    console.log('[WBSPage][renderTreeNodes] Nodes found:', nodes.length);
     if (nodes.length === 0) return null;
 
     return (
@@ -363,6 +390,8 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
       </div>
     );
   }
+
+  console.log('[WBSPage][Render] Render triggered - wbsItems count:', wbsItems.length, 'loading:', loading, 'project:', !!project);
 
   return (
     <div className="min-h-screen bg-slate-50/50 py-8 px-6">
