@@ -186,7 +186,7 @@ export default function SCurvePage() {
             id="project-select"
             value={selectedProject || ""}
             onChange={(e) => setSelectedProject(e.target.value || null)}
-            className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-2 text-black focus:outline-none focus:ring-2 focus:ring-rose-300 w-full md:w-auto"
+            className="bg-white/20 backdrop-blur-sm border rounded-lg px-4 py-2 text-black w-full md:w-auto"
           >
             <option value="">Select a project...</option>
             <option value="all">All Projects (Combined)</option>
