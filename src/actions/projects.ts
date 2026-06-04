@@ -11,7 +11,7 @@ export async function getProjects(): Promise<Project[]> {
   const supabase = await createClient();
   
   const { data, error } = await supabase
-    .from('projects')
+    .from('Project')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -40,7 +40,7 @@ export async function createProject(projectData: ProjectFormValues): Promise<Pro
   };
 
   const { data, error } = await supabase
-    .from('projects')
+    .from('Project')
     .insert([newProject])
     .select()
     .single();
@@ -61,7 +61,7 @@ export async function updateProject(id: string, projectData: Partial<Project>): 
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from('projects')
+    .from('Project')
     .update(projectData)
     .eq('id', id)
     .select()
@@ -84,7 +84,7 @@ export async function deleteProject(id: string): Promise<void> {
   const supabase = await createClient();
 
   const { error } = await supabase
-    .from('projects')
+    .from('Project')
     .delete()
     .eq('id', id);
 

@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [session, setSession] = useState<any>(null);
   const router = useRouter();
 
   console.log('LoginPage: Component rendered');
