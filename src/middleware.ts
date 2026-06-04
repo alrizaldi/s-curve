@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next();
   
   try {
-    // Create Supabase client with proper cookie handling
+    // Create Supabase client with proper cookie handling for authentication
     console.log('[Middleware][SupabaseClient] Creating Supabase server client');
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,14 +15,25 @@ export async function middleware(request: NextRequest) {
       {
         cookies: {
           getAll() {
-            console.log('[Middleware][Cookies] Getting all cookies');
-            return request.cookies.getAll();
+            console.log('[Middleware][Cookies] Getting all cookies from request');
+            const allCookies = request.cookies.getAll();
+            console.log('[Middleware][Cookies] All cookies:', allCookies);
+            return allCookies;
           },
+          // Properly handle setting cookies to sync auth state
           setAll(cookiesToSet) {
             console.log('[Middleware][Cookies] Setting cookies:', cookiesToSet.length);
             cookiesToSet.forEach(({ name, value, options }) => {
-              console.log('[Middleware][CookieSet]', name, 'with options:', options);
-              response.cookies.set(name, value, options);
+              console.log('[Middleware][CookieSet]', name, 'options:', options);
+              // Set the cookie with the correct options to ensure cross-environment compatibility
+              response.cookies.set(name, value, {
+                ...options,
+                // For production deployments, we may need to adjust these settings
+                httpOnly: options.httpOnly ?? true,
+                secure: options.secure ?? process.env.NODE_ENV === 'production', // Use secure cookies in production
+                sameSite: options.sameSite ?? 'lax', // Changed from 'none' to 'lax' for better compatibility
+                path: options.path ?? '/',
+              });
             });
           },
         },
@@ -36,6 +47,17 @@ export async function middleware(request: NextRequest) {
       const { data: { session: fetchedSession } } = await supabase.auth.getSession();
       session = fetchedSession;
       console.log('[Middleware][SessionCheck] Session check complete, session exists:', !!session, 'user ID:', session?.user?.id);
+      
+      // Additional debug: Check if there are auth cookies present
+      const allCookies = request.cookies.getAll();
+      const authCookies = allCookies.filter(cookie => 
+        cookie.name.includes('sb-') && cookie.name.includes('-auth-token')
+      );
+      console.log('[Middleware][AuthDebug] Total cookies:', allCookies.length);
+      console.log('[Middleware][AuthDebug] Found auth-related cookies:', authCookies.length, 'details:', authCookies);
+      
+      // Log all cookie names for debugging
+      console.log('[Middleware][AuthDebug] All cookie names:', allCookies.map(c => c.name));
     } catch (error) {
       console.warn('[Middleware][SessionCheck] Error getting session:', error);
     }
