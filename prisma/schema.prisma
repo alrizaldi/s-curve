@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model profiles {
+  id            String        @id @default(uuid())
+  auth_user_id  String        @unique
+  full_name     String?
+  email         String        @unique
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  progress_logs ProgressLog[]
+  projects      Project[]
+}
+
+model Project {
+  id            String        @id @default(uuid())
+  name          String
+  description   String?
+  start_date    DateTime
+  end_date      DateTime
+  status        String
+  created_by    String
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  baselines     Baseline[]
+  milestones    Milestone[]
+  progress_logs ProgressLog[]
+  profile       profiles      @relation(fields: [created_by], references: [auth_user_id])
+  wbs_items     WBSItem[]
+}
+
+model WBSItem {
+  id            String        @id @default(uuid())
+  project_id    String
+  parent_id     String?
+  name          String
+  description   String?
+  weight        Float         @default(1.0)
+  progress      Float         @default(0.0)
+  planned_start DateTime
+  planned_end   DateTime
+  status        String
+  sort_order    Int           @default(0)
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  progress_logs ProgressLog[]
+  parent        WBSItem?      @relation("WbsTree", fields: [parent_id], references: [id])
+  children      WBSItem[]     @relation("WbsTree")
+  project       Project       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model Milestone {
+  id             String    @id @default(uuid())
+  project_id     String
+  name           String
+  description    String?
+  due_date       DateTime
+  completed_date DateTime?
+  status         String
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  project        Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model Baseline {
+  id            String   @id @default(uuid())
+  project_id    String
+  baseline_name String
+  snapshot      Json?
+  created_at    DateTime @default(now())
+  project       Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model ProgressLog {
+  id          String   @id @default(uuid())
+  project_id  String
+  wbs_item_id String
+  progress    Float
+  remarks     String?
+  created_by  String
+  created_at  DateTime @default(now())
+  profile     profiles @relation(fields: [created_by], references: [auth_user_id])
+  project     Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  wbs_item    WBSItem  @relation(fields: [wbs_item_id], references: [id], onDelete: Cascade)
+}
