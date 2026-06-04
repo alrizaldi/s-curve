@@ -25,15 +25,24 @@ export async function middleware(request: NextRequest) {
             console.log('[Middleware][Cookies] Setting cookies:', cookiesToSet.length);
             cookiesToSet.forEach(({ name, value, options }) => {
               console.log('[Middleware][CookieSet]', name, 'options:', options);
-              // Set the cookie with the correct options to ensure cross-environment compatibility
-              response.cookies.set(name, value, {
+              
+              // Sanitize cookie name to ensure compatibility
+              const sanitizedOptions = {
                 ...options,
-                // For production deployments, we may need to adjust these settings
                 httpOnly: options.httpOnly ?? true,
-                secure: options.secure ?? process.env.NODE_ENV === 'production', // Use secure cookies in production
-                sameSite: options.sameSite ?? 'lax', // Changed from 'none' to 'lax' for better compatibility
+                secure: options.secure ?? process.env.NODE_ENV === 'production',
+                sameSite: options.sameSite ?? 'lax',
                 path: options.path ?? '/',
-              });
+              };
+              
+              // Handle domain for cross-environment compatibility
+              if (process.env.NODE_ENV === 'production') {
+                // In production, set domain for cross-subdomain compatibility
+                sanitizedOptions.domain = process.env.COOKIE_DOMAIN ?? '.yourdomain.com';
+              }
+              
+              // Set the cookie with the correct options
+              response.cookies.set(name, value, sanitizedOptions);
             });
           },
         },
@@ -89,7 +98,14 @@ export async function middleware(request: NextRequest) {
     }
   } catch (error) {
     console.error('[Middleware][Error] Error in middleware:', error);
-    // Continue with the response if there's an error in middleware
+    // Return an error response if there's a critical error in middleware
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
   }
 
   console.log('[Middleware][Response] Request processed, returning response');

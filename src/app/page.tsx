@@ -8,16 +8,25 @@ import { Button } from '@/components/ui/button';
 
 export default function HomePage() {
   const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
   console.log('HomePage: Component rendered, session status:', session ? 'authenticated' : 'not authenticated');
 
   useEffect(() => {
+    if (!supabase) {
+      console.error('HomePage: Supabase client not available');
+      setLoading(false);
+      setInitialized(true);
+      return;
+    }
+    
     console.log('HomePage: useEffect hook running to check session');
     
     const checkSession = async () => {
       console.log('HomePage: Checking session status...');
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase!.auth.getSession(); // Non-null assertion since we check above
       console.log('HomePage: Session data received:', data.session ? 'User is logged in' : 'User is not logged in');
       
       setSession(data.session);
@@ -29,13 +38,15 @@ export default function HomePage() {
       } else {
         console.log('HomePage: User is not logged in, showing homepage content');
       }
+      setLoading(false);
+      setInitialized(true);
     };
 
     checkSession();
 
     // Listen for auth state changes
     console.log('HomePage: Setting up auth state change listener');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
       console.log('HomePage: Auth state changed, event:', _event, 'session exists:', !!session);
       setSession(session);
       if (session) {
@@ -54,6 +65,16 @@ export default function HomePage() {
   }, [router]);
 
   console.log('HomePage: Rendering homepage content');
+
+  if (loading || !initialized) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="flex justify-center items-center h-64">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

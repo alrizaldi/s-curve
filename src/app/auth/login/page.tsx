@@ -12,43 +12,69 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
   console.log('LoginPage: Component rendered');
 
   // Check if user is already logged in when component mounts
   useEffect(() => {
+    if (!supabase) {
+      console.error('LoginPage: Supabase client not available');
+      setInitialized(true);
+      return;
+    }
+    
     console.log('LoginPage: useEffect running to check session');
     
     const checkSession = async () => {
-      try {
-        console.log('LoginPage: Checking if user is already logged in...');
-        const { data } = await supabase.auth.getSession();
-        console.log('LoginPage: Session check result:', data.session ? 'User is logged in' : 'User is not logged in');
-        
-        if (data.session) {
-          console.log('LoginPage: User already logged in, redirecting to dashboard');
-          // If already logged in, redirect to dashboard
-          router.push('/dashboard');
-        } else {
-          console.log('LoginPage: User not logged in, showing login form');
-        }
-      } catch (error) {
-        console.warn('LoginPage: Error checking session:', error);
+      console.log('LoginPage: Checking if user is already logged in...');
+      const { data } = await supabase!.auth.getSession(); // Non-null assertion since we check above
+      console.log('LoginPage: Session check result:', data.session ? 'User is logged in' : 'User is not logged in');
+      
+      setSession(data.session);
+
+      // If user is already logged in, redirect to dashboard
+      if (data.session) {
+        console.log('LoginPage: User already logged in, redirecting to dashboard');
+        router.push('/dashboard');
+      } else {
+        console.log('LoginPage: User not logged in, showing login form');
       }
+      setInitialized(true);
     };
 
     checkSession();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        console.log('LoginPage: Session detected, redirecting to dashboard');
+        router.push('/dashboard');
+      } else {
+        console.log('LoginPage: No session, staying on login page');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      console.error('LoginPage: Supabase client not available');
+      return;
+    }
+    
     console.log('LoginPage: Login attempt started with email:', email);
     setLoading(true);
 
     try {
       console.log('LoginPage: Calling signInWithPassword API');
-      const { error, data } = await supabase.auth.signInWithPassword({
+      const { error, data } = await supabase!.auth.signInWithPassword({
         email,
         password,
       });
@@ -79,12 +105,17 @@ export default function LoginPage() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      console.error('LoginPage: Supabase client not available');
+      return;
+    }
+    
     console.log('LoginPage: Signup attempt started with email:', email);
     setLoading(true);
 
     try {
       console.log('LoginPage: Calling signUp API');
-      const { error, data } = await supabase.auth.signUp({
+      const { error, data } = await supabase!.auth.signUp({
         email,
         password,
         options: {
@@ -113,6 +144,19 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Don't render until initialization is complete
+  if (!initialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="flex justify-center">
+            <p>Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   console.log('LoginPage: Rendering login form');
   

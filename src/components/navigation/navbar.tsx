@@ -8,29 +8,37 @@ import { useRouter } from "next/navigation";
 
 export default function Navbar() {
   const [session, setSession] = useState<any>(null);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    if (!supabase) {
+      console.error('Navbar: Supabase client not available');
+      setInitialized(true);
+      return;
+    }
+    
     console.log('Navbar: useEffect hook running');
     
     // Wrap in try-catch to handle potential errors during session retrieval
     const getSession = async () => {
       try {
         console.log('Navbar: Getting session...');
-        const { data } = await supabase.auth.getSession();
+        const { data } = await supabase!.auth.getSession(); // Non-null assertion since we check above
         console.log('Navbar: Session data received:', data.session);
         setSession(data.session);
       } catch (error) {
         console.warn("Navbar: Error getting session:", error);
         setSession(null);
       }
+      setInitialized(true);
     };
 
     getSession();
 
     // Subscribe to auth state changes with error handling
     console.log('Navbar: Setting up auth state change listener');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange(async (_event, session) => {
       try {
         console.log('Navbar: Auth state changed, event:', _event, 'session:', session);
         setSession(session);
@@ -50,9 +58,15 @@ export default function Navbar() {
   }, []);
 
   const handleSignOut = async () => {
+    if (!supabase) {
+      console.error('Navbar: Supabase client not available');
+      router.push('/auth/login');
+      return;
+    }
+    
     console.log('Navbar: Signing out...');
     try {
-      await supabase.auth.signOut();
+      await supabase!.auth.signOut(); // Non-null assertion since we check above
       console.log('Navbar: Successfully signed out, redirecting to login');
       router.push('/auth/login'); // 更正为正确的登录页面路径
     } catch (error) {
@@ -60,6 +74,23 @@ export default function Navbar() {
       router.push('/auth/login'); // Still redirect to login page even if sign out fails
     }
   };
+
+  if (!initialized) {
+    return (
+      <header className="border-b">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <Link href="/" className="flex items-center space-x-2">
+            <span className="text-xl font-bold">S-Curve</span>
+          </Link>
+          <div className="flex items-center space-x-4">
+            <Button variant="outline" size="sm" disabled>
+              Loading...
+            </Button>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   console.log('Navbar: Rendering, session status:', session ? 'authenticated' : 'not authenticated');
 

@@ -16,16 +16,24 @@ import { Badge } from "@/components/ui/badge";
 export default function DashboardPage() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
   console.log('DashboardPage: Component rendered, loading:', loading, 'session:', session ? 'exists' : 'none');
 
   useEffect(() => {
+    if (!supabase) {
+      console.error('DashboardPage: Supabase client not available');
+      setLoading(false);
+      setInitialized(true);
+      return;
+    }
+    
     console.log('DashboardPage: useEffect hook running to check session');
     
     const checkSession = async () => {
       console.log('DashboardPage: Checking session status...');
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase!.auth.getSession(); // Non-null assertion since we check above
       console.log("DashboardPage: Current session data:", data);
       setSession(data.session);
 
@@ -38,6 +46,7 @@ export default function DashboardPage() {
       }
 
       setLoading(false);
+      setInitialized(true);
       console.log('DashboardPage: Loading set to false');
     };
 
@@ -47,7 +56,7 @@ export default function DashboardPage() {
     console.log('DashboardPage: Setting up auth state change listener');
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase!.auth.onAuthStateChange((_event, session) => {
       console.log('DashboardPage: Auth state changed, event:', _event, 'session exists:', !!session);
       setSession(session);
       if (!session) {
@@ -67,7 +76,7 @@ export default function DashboardPage() {
   console.log('DashboardPage: Dashboard rendering - loading:', loading, 'session exists:', !!session);
 
   // Show loading state while checking session
-  if (loading) {
+  if (loading || !initialized) {
     console.log('DashboardPage: Showing loading state');
     return (
       <div className="container mx-auto py-10">
