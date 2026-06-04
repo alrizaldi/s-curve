@@ -1,91 +1,126 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useProjects } from "@/hooks/useProjects";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+import { getProjectById } from "@/actions/projects";
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Correct import
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { WBSItem, WBSItemWithChildren, Milestone } from "@/types";
-import { getWBSItems } from "@/actions/wbs";
+import { Project, WBSItem, ProgressLog, Milestone } from "@/types";
+import { calculatePlannedCurve, calculateActualCurve, combineCurves } from "@/services/scurve";
+import { useState, useEffect, use, useRef } from "react";
+import { getWBSItems, getProgressLogs } from "@/actions/wbs";
 import { getMilestones } from "@/actions/milestones";
-import { useState, useEffect, use } from "react";
-import Link from "next/link";
-import {
-  FolderKanban,
-  Flag,
-  Sliders,
-  Calendar,
-  Loader2,
+import { 
+  FolderKanban, 
+  Flag, 
+  Users, 
+  Calendar, 
+  CheckCircle2, 
+  Clock, 
+  AlertTriangle, 
   Activity,
-  Target,
   TrendingUp,
+  Target,
+  Sliders
 } from "lucide-react";
+import Link from "next/link";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from "recharts";
+import { ExportButton, SCurveExportButton } from "@/components/ui/export-button";
 
-// Helper function to build the hierarchical WBS tree from a flat list
-function buildWBSTree(flatItems: WBSItem[]): WBSItemWithChildren[] {
-  const itemsMap = new Map<string, WBSItemWithChildren>();
+type PageParams = {
+  id: string;
+};
 
-  // First pass: create nodes with empty children array
-  flatItems.forEach((item) => {
-    itemsMap.set(item.id, { ...item, children: [] });
-  });
-
-  const roots: WBSItemWithChildren[] = [];
-
-  // Second pass: link children to their parents
-  flatItems.forEach((item) => {
-    const mappedItem = itemsMap.get(item.id)!;
-    if (item.parent_id && itemsMap.has(item.parent_id)) {
-      const parent = itemsMap.get(item.parent_id)!;
-      parent.children.push(mappedItem);
-    } else {
-      roots.push(mappedItem);
-    }
-  });
-
-  return roots;
-}
-
-export default function ProjectDetailPage() {
-  const params = useParams();
-  const { projects } = useProjects();
-  const projectId = params.id as string;
-
-  const project = projects.find((p) => p.id === projectId);
-
-  const [wbsTree, setWbsTree] = useState<WBSItemWithChildren[]>([]);
+export default function ProjectDetailPage({ params }: { params: Promise<PageParams> }) {
+  const resolvedParams = use(params);
+  const { id: projectId } = resolvedParams;
+  
+  const [project, setProject] = useState<Project | null>(null);
+  const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
+  const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [loadingDetails, setLoadingDetails] = useState(true);
+  const [scurveData, setScurveData] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"wbs" | "milestones">("wbs");
+  const [loading, setLoading] = useState(true);
 
+  const scurveChartRef = useRef<HTMLDivElement>(null); // Ref for the S-Curve chart
+
+  // Load project data
   useEffect(() => {
-    async function loadProjectDetails() {
-      if (!projectId) return;
+    const fetchData = async () => {
       try {
-        setLoadingDetails(true);
-        const [wbsList, milestonesList] = await Promise.all([
+        setLoading(true);
+        const [projectData, wbsItemsData, progressLogsData, milestonesData] = await Promise.all([
+          getProjectById(projectId),
           getWBSItems(projectId),
-          getMilestones(projectId),
+          getProgressLogs(projectId),
+          getMilestones(projectId)
         ]);
 
-        // Build the WBS Tree from flat WBS Items
-        setWbsTree(buildWBSTree(wbsList));
-        setMilestones(milestonesList);
+        setProject(projectData);
+        setWbsItems(wbsItemsData);
+        setProgressLogs(progressLogsData);
+        setMilestones(milestonesData);
+
+        // Calculate S-Curve data
+        const plannedData = calculatePlannedCurve(wbsItemsData);
+        const actualData = calculateActualCurve(progressLogsData, wbsItemsData);
+        const combinedData = combineCurves(plannedData, actualData);
+        setScurveData(combinedData);
       } catch (error) {
-        console.error("Failed to load project details:", error);
+        console.error("Error fetching project data:", error);
       } finally {
-        setLoadingDetails(false);
+        setLoading(false);
       }
+    };
+
+    if (projectId) {
+      fetchData();
     }
-    loadProjectDetails();
   }, [projectId]);
+
+  if (loading && !project) {
+    return (
+      <div className="min-h-screen bg-slate-50/50">
+        {/* Premium Header Banner */}
+        <div className="bg-gradient-to-r from-slate-600 via-gray-700 to-slate-800 text-white py-12 px-6 shadow-md">
+          <div className="container mx-auto max-w-6xl">
+            <div className="flex items-center space-x-3 mb-3">
+              <Activity className="h-8 w-8 text-slate-200" />
+              <Badge
+                variant="secondary"
+                className="bg-slate-500/30 text-slate-100 hover:bg-slate-500/40 border-slate-400/20"
+              >
+                Project Details
+              </Badge>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
+              Loading Project...
+            </h1>
+            <p className="text-slate-100 max-w-2xl text-sm md:text-base font-light">
+              Please wait while we load the project details
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!project) {
     return (
@@ -137,7 +172,7 @@ export default function ProjectDetailPage() {
   // Calculate dynamic project overall progress
   let totalRootWeight = 0;
   let rootWeightedProgressSum = 0;
-  wbsTree.forEach((item) => {
+  wbsItems.forEach((item) => {
     totalRootWeight += item.weight;
     rootWeightedProgressSum += item.progress * item.weight;
   });
@@ -298,12 +333,121 @@ export default function ProjectDetailPage() {
                     <Flag className="h-4 w-4" /> Manage Milestones
                   </Link>
                 </Button>
+                <ExportButton
+                  project={project}
+                  wbsItems={wbsItems}
+                  milestones={milestones}
+                  progressLogs={progressLogs}
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-100 text-blue-700 hover:bg-blue-50 justify-start mt-2"
+                />
+                <SCurveExportButton
+                  project={project}
+                  wbsItems={wbsItems}
+                  progressLogs={progressLogs}
+                  chartRef={scurveChartRef}  // Pass the chart ref
+                  variant="outline"
+                  size="sm"
+                  className="border-purple-100 text-purple-700 hover:bg-purple-50 justify-start"
+                />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="wbs" className="flex flex-col space-y-4">
+        {/* S-CURVE ANALYSIS SECTION */}
+        <div className="mt-8">
+          <Card className="bg-white border-slate-100">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between text-slate-800">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  S-Curve Analysis
+                </div>
+                <SCurveExportButton
+                  project={project}
+                  wbsItems={wbsItems}
+                  progressLogs={progressLogs}
+                  chartRef={scurveChartRef}  // Pass the chart ref
+                  variant="outline"
+                  size="sm"
+                />
+              </CardTitle>
+              <CardDescription>
+                Planned vs actual progress for this project
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {scurveData.length > 0 ? (
+                <div className="h-80" ref={scurveChartRef}>  {/* Add ref to chart container */}
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={scurveData}
+                      margin={{
+                        top: 5,
+                        right: 30,
+                        left: 20,
+                        bottom: 5,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(value) =>
+                          new Date(value).toLocaleDateString()
+                        }
+                      />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip
+                        formatter={(value) => [`${value}%`, "Progress"]}
+                        labelFormatter={(value) =>
+                          `Date: ${new Date(value).toLocaleDateString()}`
+                        }
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="planned"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name="Planned Progress"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="actual"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name="Actual Progress"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-80 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50">
+                  <div className="text-center">
+                    <TrendingUp className="h-12 w-12 text-blue-400 mx-auto mb-3" />
+                    <p className="text-slate-500 mb-3">
+                      No progress data available yet.
+                    </p>
+                    <a
+                      href={`/projects/${project.id}/wbs`}
+                      className="inline-flex items-center gap-1 text-blue-600 hover:underline font-medium"
+                    >
+                      Add WBS Items <TrendingUp className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as "wbs" | "milestones")} className="flex flex-col space-y-4 mt-8">
           <TabsList className="grid w-full grid-cols-2 bg-slate-100 border border-slate-200 p-1 rounded-lg self-start">
             <TabsTrigger
               value="wbs"
@@ -329,26 +473,35 @@ export default function ProjectDetailPage() {
                   <FolderKanban className="h-5 w-5 text-indigo-600" />
                   Work Breakdown Structure
                 </h2>
-                <Button
-                  size="sm"
-                  asChild
-                  variant="outline"
-                  className="text-xs border-indigo-100 text-indigo-700 hover:bg-indigo-50"
-                >
-                  <Link href={`/projects/${project.id}/wbs`}>Edit Tree</Link>
-                </Button>
+                <div className="flex gap-2">
+                  <ExportButton
+                    project={project}
+                    wbsItems={wbsItems}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    asChild
+                    variant="outline"
+                    className="text-xs border-indigo-100 text-indigo-700 hover:bg-indigo-50"
+                  >
+                    <Link href={`/projects/${project.id}/wbs`}>Edit Tree</Link>
+                  </Button>
+                </div>
               </div>
 
-              {loadingDetails ? (
+              {loading ? (
                 <div className="flex items-center justify-center py-10">
                   <div className="flex flex-col items-center">
-                    <Loader2 className="h-6 w-6 text-indigo-600 animate-spin" />
+                    <Activity className="h-6 w-6 text-indigo-600 animate-spin" />
                     <p className="mt-2 text-sm text-slate-500">
                       Loading WBS items...
                     </p>
                   </div>
                 </div>
-              ) : wbsTree.length === 0 ? (
+              ) : wbsItems.length === 0 ? (
                 <Card className="py-8 text-center bg-white border border-slate-100">
                   <CardHeader>
                     <CardTitle className="text-slate-600 text-lg">
@@ -373,114 +526,75 @@ export default function ProjectDetailPage() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {wbsTree.map((item) => (
-                    <Card
-                      key={item.id}
-                      className="bg-white border border-slate-100 hover:shadow-sm transition-all duration-200 hover:border-indigo-200"
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex justify-between items-start gap-4">
-                          <div>
-                            <CardTitle className="text-base font-semibold text-slate-800">
-                              {item.name}
-                            </CardTitle>
-                            {item.description && (
-                              <CardDescription className="text-xs text-slate-500">
-                                {item.description}
-                              </CardDescription>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] text-slate-400 border-slate-200"
-                            >
-                              Weight: {item.weight}
-                            </Badge>
-                            <Badge
-                              variant={
-                                item.status === "Completed"
-                                  ? "secondary"
-                                  : item.status === "In Progress"
-                                    ? "default"
-                                    : item.status === "Delayed"
-                                      ? "destructive"
-                                      : "outline"
-                              }
-                              className="text-xs"
-                            >
-                              {item.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pb-3 pt-0">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs text-slate-500 font-medium">
-                            <span>Progress</span>
-                            <span>{item.progress}%</span>
-                          </div>
-                          <Progress
-                            value={item.progress}
-                            className="w-full h-1.5"
-                          />
-                          <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">
-                            <span>
-                              Start:{" "}
-                              {new Date(
-                                item.planned_start,
-                              ).toLocaleDateString()}
-                            </span>
-                            <span>
-                              End:{" "}
-                              {new Date(item.planned_end).toLocaleDateString()}
-                            </span>
-                          </div>
-
-                          {/* Render children items */}
-                          {item.children && item.children.length > 0 && (
-                            <div className="mt-4 pl-4 border-l-2 border-slate-100 space-y-3">
-                              {item.children.map((child) => (
-                                <div
-                                  key={child.id}
-                                  className="py-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100/50 hover:bg-slate-50"
-                                >
-                                  <div className="flex justify-between items-center mb-1">
-                                    <span className="font-semibold text-xs text-slate-700">
-                                      {child.name}
-                                    </span>
-                                    <Badge
-                                      variant={
-                                        child.status === "Completed"
-                                          ? "secondary"
-                                          : child.status === "In Progress"
-                                            ? "default"
-                                            : child.status === "Delayed"
-                                              ? "destructive"
-                                              : "outline"
-                                      }
-                                      className="text-[10px] py-0 px-1.5"
-                                    >
-                                      {child.status}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center mt-1 gap-2">
-                                    <Progress
-                                      value={child.progress}
-                                      className="flex-1 h-1"
-                                    />
-                                    <span className="text-[10px] font-bold text-slate-500 w-8">
-                                      {child.progress}%
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
+                  {wbsItems
+                    .filter(item => !item.parent_id) // Only show root items
+                    .map((item) => (
+                      <Card
+                        key={item.id}
+                        className="bg-white border border-slate-100 hover:shadow-sm transition-all duration-200 hover:border-indigo-200"
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex justify-between items-start gap-4">
+                            <div>
+                              <CardTitle className="text-base font-semibold text-slate-800">
+                                {item.name}
+                              </CardTitle>
+                              {item.description && (
+                                <CardDescription className="text-xs text-slate-500">
+                                  {item.description}
+                                </CardDescription>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] text-slate-400 border-slate-200"
+                              >
+                                Weight: {item.weight}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  item.status === "Completed"
+                                    ? "secondary"
+                                    : item.status === "In Progress"
+                                      ? "default"
+                                      : item.status === "Delayed"
+                                        ? "destructive"
+                                        : "outline"
+                                }
+                                className="text-xs"
+                              >
+                                {item.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pb-3 pt-0">
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs text-slate-500 font-medium">
+                              <span>Progress</span>
+                              <span>{item.progress}%</span>
+                            </div>
+                            <Progress
+                              value={item.progress}
+                              className="w-full h-1.5"
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">
+                              <span>
+                                Start:{" "}
+                                {new Date(
+                                  item.planned_start,
+                                ).toLocaleDateString()}
+                              </span>
+                              <span>
+                                End:{" "}
+                                {new Date(item.planned_end).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                 </div>
               )}
             </TabsContent>
@@ -492,22 +606,31 @@ export default function ProjectDetailPage() {
                   <Flag className="h-5 w-5 text-emerald-600" />
                   Project Milestones
                 </h2>
-                <Button
-                  size="sm"
-                  asChild
-                  variant="outline"
-                  className="text-xs border-emerald-100 text-emerald-700 hover:bg-emerald-50"
-                >
-                  <Link href={`/projects/${project.id}/milestones`}>
-                    Manage Milestones
-                  </Link>
-                </Button>
+                <div className="flex gap-2">
+                  <ExportButton
+                    project={project}
+                    milestones={milestones}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    asChild
+                    variant="outline"
+                    className="text-xs border-emerald-100 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <Link href={`/projects/${project.id}/milestones`}>
+                      Manage Milestones
+                    </Link>
+                  </Button>
+                </div>
               </div>
 
-              {loadingDetails ? (
+              {loading ? (
                 <div className="flex items-center justify-center py-10">
                   <div className="flex flex-col items-center">
-                    <Loader2 className="h-6 w-6 text-emerald-600 animate-spin" />
+                    <Activity className="h-6 w-6 text-emerald-600 animate-spin" />
                     <p className="mt-2 text-sm text-slate-500">
                       Loading milestones...
                     </p>

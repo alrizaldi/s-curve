@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { getProjects } from "@/actions/projects";
-import { Project } from "@/types";
+import { getWBSItems } from "@/actions/wbs";
+import { getProgressLogs } from "@/actions/wbs";
+import { Project, WBSItem, ProgressLog } from "@/types";
 import {
   Card,
   CardContent,
@@ -14,8 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { FolderKanban, Search, ArrowRight, Loader2 } from "lucide-react";
+import { FolderKanban, Search, ArrowRight, Loader2, Download } from "lucide-react";
 import Link from "next/link";
+import { ExportButton } from "@/components/ui/export-button";
+import { GlobalExportButton } from "@/components/ui/global-export-button";
 
 export default function GlobalWBSPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -49,6 +53,87 @@ export default function GlobalWBSPage() {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Function to get WBS items and progress logs for all projects
+  const getAllWBSData = async () => {
+    let allWbsItems: WBSItem[] = [];
+    let allProgressLogs: ProgressLog[] = [];
+
+    for (const project of projects) {
+      const wbsItems = await getWBSItems(project.id);
+      const progressLogs = await getProgressLogs(project.id);
+      
+      allWbsItems = [...allWbsItems, ...wbsItems];
+      allProgressLogs = [...allProgressLogs, ...progressLogs];
+    }
+
+    return { wbsItems: allWbsItems, progressLogs: allProgressLogs };
+  };
+
+  const handleGlobalExport = async () => {
+    const { wbsItems, progressLogs } = await getAllWBSData();
+    
+    // Group WBS items by project
+    const groupedWBSItems: Record<string, WBSItem[]> = {};
+    wbsItems.forEach(item => {
+      if (!groupedWBSItems[item.project_id]) {
+        groupedWBSItems[item.project_id] = [];
+      }
+      groupedWBSItems[item.project_id].push(item);
+    });
+
+    // Export all projects with their respective WBS items
+    for (const projectId in groupedWBSItems) {
+      const project = projects.find(p => p.id === projectId);
+      if (project) {
+        const projectWbsItems = groupedWBSItems[projectId];
+        const projectLogs = progressLogs.filter(log => log.project_id === projectId);
+        
+        await import('xlsx').then(XLSX => {
+          const wb = XLSX.default.utils.book_new();
+          
+          // Add WBS items sheet
+          const wbsData = projectWbsItems.map(wbsItem => ({
+            'ID': wbsItem.id,
+            'Project ID': wbsItem.project_id,
+            'Parent ID': wbsItem.parent_id || '',
+            'Name': wbsItem.name,
+            'Description': wbsItem.description || '',
+            'Weight': wbsItem.weight,
+            'Progress': wbsItem.progress,
+            'Planned Start': wbsItem.planned_start.toISOString().split('T')[0],
+            'Planned End': wbsItem.planned_end.toISOString().split('T')[0],
+            'Status': wbsItem.status,
+            'Sort Order': wbsItem.sort_order,
+            'Created At': wbsItem.created_at.toISOString(),
+            'Updated At': wbsItem.updated_at.toISOString()
+          }));
+          
+          const ws = XLSX.default.utils.json_to_sheet(wbsData);
+          XLSX.default.utils.book_append_sheet(wb, ws, 'WBS_Items');
+          
+          // Add progress logs sheet if any
+          if (projectLogs.length > 0) {
+            const logsData = projectLogs.map(log => ({
+              'ID': log.id,
+              'Project ID': log.project_id,
+              'WBS Item ID': log.wbs_item_id,
+              'Progress': log.progress,
+              'Remarks': log.remarks || '',
+              'Created By': log.created_by,
+              'Created At': log.created_at.toISOString()
+            }));
+            
+            const logWs = XLSX.default.utils.json_to_sheet(logsData);
+            XLSX.default.utils.book_append_sheet(wb, logWs, 'Progress_Logs');
+          }
+          
+          // Write the workbook to a file
+          XLSX.default.writeFile(wb, `wbs_export_${project.name.replace(/\s+/g, '_')}_${project.id}.xlsx`);
+        });
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -101,6 +186,11 @@ export default function GlobalWBSPage() {
                 </Button>
               ),
             )}
+            <GlobalExportButton
+              variant="outline"
+              size="sm"
+              className="text-xs rounded-lg transition-all flex items-center gap-1"
+            />
           </div>
         </div>
 
@@ -192,20 +282,28 @@ export default function GlobalWBSPage() {
                         { month: "short", day: "numeric" },
                       )}
                     </span>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="sm"
-                      className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium group/btn"
-                    >
-                      <Link
-                        href={`/projects/${project.id}/wbs`}
-                        className="flex items-center gap-1"
+                    <div className="flex gap-2">
+                      <ExportButton
+                        project={project}
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs px-2"
+                      />
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium group/btn"
                       >
-                        Manage WBS{" "}
-                        <ArrowRight className="h-3 w-3 group-hover/btn:translate-x-0.5 transition-transform" />
-                      </Link>
-                    </Button>
+                        <Link
+                          href={`/projects/${project.id}/wbs`}
+                          className="flex items-center gap-1"
+                        >
+                          Manage WBS{" "}
+                          <ArrowRight className="h-3 w-3 group-hover/btn:translate-x-0.5 transition-transform" />
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

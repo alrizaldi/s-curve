@@ -8,7 +8,8 @@ import {
   deleteWBSItem,
 } from "@/actions/wbs";
 import { getProjects } from "@/actions/projects";
-import { WBSItem, WBSItemFormValues, WBSItemStatus, Project } from "@/types";
+import { getProgressLogs } from "@/actions/wbs";
+import { WBSItem, WBSItemFormValues, WBSItemStatus, Project, ProgressLog } from "@/types";
 import {
   Card,
   CardContent,
@@ -35,6 +36,7 @@ import {
   Network,
 } from "lucide-react";
 import Link from "next/link";
+import { ExportButton } from "@/components/ui/export-button";
 
 type PageParams = {
   id: string;
@@ -50,6 +52,7 @@ export default function ProjectWBSPage({
 
   const [project, setProject] = useState<Project | null>(null);
   const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
+  const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Collapse/Expand state for WBS items
@@ -82,15 +85,17 @@ export default function ProjectWBSPage({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [projectsList, wbsList] = await Promise.all([
+      const [projectsList, wbsList, logsList] = await Promise.all([
         getProjects(),
         getWBSItems(projectId),
+        getProgressLogs(projectId),
       ]);
 
       const foundProject = projectsList.find((p) => p.id === projectId);
 
       if (foundProject) setProject(foundProject);
       setWbsItems(wbsList);
+      setProgressLogs(logsList);
     } catch (error) {
       console.error("[WBSPage][LoadData] Failed to load data:", error);
     } finally {
@@ -409,6 +414,12 @@ export default function ProjectWBSPage({
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    <ExportButton
+                      wbsItems={[node]}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    />
                   </div>
                 </div>
               </div>
@@ -471,12 +482,21 @@ export default function ProjectWBSPage({
               </span>
             </p>
           </div>
-          <Button
-            onClick={() => openFormModal()}
-            className="bg-indigo-600 hover:bg-indigo-700 shadow-sm shrink-0"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Add Root WBS Item
-          </Button>
+          <div className="flex gap-2">
+            <ExportButton
+              project={project!}
+              wbsItems={wbsItems}
+              progressLogs={progressLogs}
+              variant="outline"
+              className="shrink-0"
+            />
+            <Button
+              onClick={() => openFormModal()}
+              className="bg-indigo-600 hover:bg-indigo-700 shadow-sm shrink-0"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Add Root WBS Item
+            </Button>
+          </div>
         </div>
 
         {/* Tree Container */}

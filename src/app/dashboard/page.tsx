@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Activity,
   Target,
@@ -20,7 +21,9 @@ import {
   BarChart3,
   Calendar,
   Loader2,
+  Download,
 } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { useProjects } from "@/hooks/useProjects";
 import { Project, WBSItem, ProgressLog, SChartDataPoint } from "@/types";
 import { getWBSItems, getProgressLogs } from "@/actions/wbs";
@@ -182,6 +185,9 @@ export default function DashboardPage() {
         ),
       },
     ]);
+
+  // Define milestones constant for ExportButton
+  const milestones = upcomingMilestones;
 
   // Show loading state while checking session
   if (loading || !initialized || projectsLoading) {
@@ -437,6 +443,16 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-end mb-6 gap-2">
+          <ExportButton
+            project={projects.length > 0 ? projects[0] : undefined}
+            wbsItems={wbsItems}
+            progressLogs={progressLogs}
+            variant="default"
+          />
         </div>
 
         {/* S-Curve Preview */}

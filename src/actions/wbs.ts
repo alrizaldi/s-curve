@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { WBSItem, WBSItemFormValues, WBSItemStatus } from "@/types";
+import { WBSItem, WBSItemFormValues, WBSItemStatus, ProgressLog } from "@/types";
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
 
@@ -244,14 +244,16 @@ export async function deleteWBSItem(
 /**
  * Fetch progress logs for a specific project
  */
-export async function getProgressLogs(projectId: string) {
+export async function getProgressLogs(projectId?: string) {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("ProgressLog")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false }); // Order by newest first
+  let query = supabase.from("ProgressLog").select("*");
+  
+  if (projectId) {
+    query = query.eq("project_id", projectId);
+  }
+  
+  const { data, error } = await query.order("created_at", { ascending: false }); // Order by newest first
 
   if (error) {
     console.error("Error fetching progress logs:", error);

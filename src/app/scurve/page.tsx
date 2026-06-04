@@ -26,16 +26,18 @@ import {
   calculateActualCurve,
   combineCurves,
 } from "@/services/scurve";
-import { TrendingUp, AlertTriangle, CheckCircle, Activity, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { TrendingUp, AlertTriangle, CheckCircle, Activity, Loader2, Download } from "lucide-react";
+import { useEffect, useState, useRef } from "react"; // Add useRef for chart export
+import { SCurveExportButton } from "@/components/ui/export-button";
 
 export default function SCurvePage() {
   const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" for all projects, otherwise project ID
+  const [selectedProject, setSelectedProject] = useState<string | null>(null); // "all" for all projects, otherwise project ID
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null); // Ref for chart container for export
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -71,8 +73,10 @@ export default function SCurvePage() {
           }
         } else {
           // Get data for specific project only
-          projectWbsItems = await getWBSItems(selectedProject);
-          projectProgressLogs = await getProgressLogs(selectedProject);
+          if (selectedProject) {
+            projectWbsItems = await getWBSItems(selectedProject);
+            projectProgressLogs = await getProgressLogs(selectedProject);
+          }
         }
         
         setWbsItems(projectWbsItems);
@@ -148,30 +152,45 @@ export default function SCurvePage() {
           <p className="text-rose-100 max-w-2xl text-sm md:text-base font-light">
             Compare planned versus actual project progress over time
           </p>
+          
+          {/* Project Selection Dropdown */}
+          <div className="mt-4">
+            <label htmlFor="project-select" className="block text-sm font-medium text-rose-100 mb-2">
+              Select Project:
+            </label>
+            <select
+              id="project-select"
+              value={selectedProject || ""}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2focus:ring-rose-300"
+            >
+              <option value="all">All Projects (Combined)</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       <div className="container mx-auto max-w-6xl py-8 px-6">
-        {/* Project Selection Dropdown moved to top of main content */}
-        <div className="mb-6">
-          <label htmlFor="project-select" className="block text-sm font-medium text-slate-700 mb-2">
-            Select Project:
-          </label>
-          <select
-            id="project-select"
-            value={selectedProject}
-            onChange={(e) => setSelectedProject(e.target.value)}
-            className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-1/2 lg:w-1/3"
-          >
-            <option value="all">All Projects (Combined)</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        
+        {/* Export button for the selected project */}
+        {selectedProject !== "all" && selectedProject !== null && (
+          <div className="mb-6 flex justify-end">
+            <SCurveExportButton
+              project={projects.find(p => p.id === selectedProject) || projects[0]}
+              wbsItems={wbsItems}
+              progressLogs={progressLogs}
+              chartRef={chartRef} // Pass the chart ref to the export button
+              variant="default"
+              size="sm"
+              className="text-xs"
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <Card className="group hover:shadow-lg transition-all duration-300 border border-slate-100 bg-white">
             <CardHeader>
@@ -313,7 +332,7 @@ export default function SCurvePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-96">
+            <div className="h-96" ref={chartRef}> {/* Add ref to the chart container */}
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={combinedData}

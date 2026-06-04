@@ -135,3 +135,23 @@ export async function deleteProject(id: string): Promise<void> {
 
   revalidatePath('/projects');
 }
+
+/**
+ * Fetch a single project by ID
+ */
+export async function getProjectById(id: string): Promise<Project> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('Project')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching project:', error);
+    throw new Error('Failed to fetch project');
+  }
+
+  return data as Project;
+}

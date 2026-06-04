@@ -22,6 +22,7 @@ import {
   Clock 
 } from 'lucide-react';
 import Link from 'next/link';
+import { ExportButton } from '@/components/ui/export-button';
 
 type PageParams = {
   id: string;
@@ -192,9 +193,17 @@ export default function ProjectMilestonesPage({ params }: { params: Promise<Page
               Project: <span className="font-semibold text-slate-700">{project?.name}</span>
             </p>
           </div>
-          <Button onClick={() => openFormModal()} className="bg-emerald-600 hover:bg-emerald-700 shadow-sm shrink-0">
-            <Plus className="mr-2 h-4 w-4" /> Add Milestone
-          </Button>
+          <div className="flex gap-2">
+            <ExportButton
+              project={project!}
+              milestones={milestones}
+              variant="outline"
+              className="shrink-0"
+            />
+            <Button onClick={() => openFormModal()} className="bg-emerald-600 hover:bg-emerald-700 shadow-sm shrink-0">
+              <Plus className="mr-2 h-4 w-4" /> Add Milestone
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
