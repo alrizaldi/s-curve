@@ -19,14 +19,21 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SChartDataPoint, WBSItem, ProgressLog, Project } from "@/types";
-import { getWBSItems, getProgressLogs } from "@/actions/wbs";  // Import only getWBSItems and getProgressLogs from wbs
-import { getProjects } from "@/actions/projects";  // Import getProjects from the correct location
+import { getWBSItems, getProgressLogs } from "@/actions/wbs"; // Import only getWBSItems and getProgressLogs from wbs
+import { getProjects } from "@/actions/projects"; // Import getProjects from the correct location
 import {
   calculatePlannedCurve,
   calculateActualCurve,
   combineCurves,
 } from "@/services/scurve";
-import { TrendingUp, AlertTriangle, CheckCircle, Activity, Loader2, Download } from "lucide-react";
+import {
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+  Activity,
+  Loader2,
+  Download,
+} from "lucide-react";
 import { useEffect, useState, useRef } from "react"; // Add useRef for chart export
 import { SCurveExportButton } from "@/components/ui/export-button";
 
@@ -34,7 +41,7 @@ export default function SCurvePage() {
   const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null); // "all" for all projects, otherwise project ID
+  const [selectedProject, setSelectedProject] = useState<string | null>(null); // null for initial empty, "all" for all projects, otherwise project ID
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null); // Ref for chart container for export
@@ -48,7 +55,9 @@ export default function SCurvePage() {
         setProjects(allProjects);
       } catch (err) {
         console.error("Error fetching projects:", err);
-        setError(err instanceof Error ? err.message : "Failed to load projects");
+        setError(
+          err instanceof Error ? err.message : "Failed to load projects",
+        );
       }
     };
 
@@ -67,23 +76,30 @@ export default function SCurvePage() {
           for (const project of projects) {
             const wbsItemsForProject = await getWBSItems(project.id);
             projectWbsItems = [...projectWbsItems, ...wbsItemsForProject];
-            
+
             const progressLogsForProject = await getProgressLogs(project.id);
-            projectProgressLogs = [...projectProgressLogs, ...progressLogsForProject];
+            projectProgressLogs = [
+              ...projectProgressLogs,
+              ...progressLogsForProject,
+            ];
           }
-        } else {
+        } else if (selectedProject) {
           // Get data for specific project only
-          if (selectedProject) {
-            projectWbsItems = await getWBSItems(selectedProject);
-            projectProgressLogs = await getProgressLogs(selectedProject);
-          }
+          projectWbsItems = await getWBSItems(selectedProject);
+          projectProgressLogs = await getProgressLogs(selectedProject);
+        } else {
+          // If no project is selected (empty string), reset the arrays
+          projectWbsItems = [];
+          projectProgressLogs = [];
         }
-        
+
         setWbsItems(projectWbsItems);
         setProgressLogs(projectProgressLogs);
       } catch (err) {
         console.error("Error fetching S-Curve data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load S-Curve data");
+        setError(
+          err instanceof Error ? err.message : "Failed to load S-Curve data",
+        );
       } finally {
         setLoading(false);
       }
@@ -119,9 +135,11 @@ export default function SCurvePage() {
       <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
         <div className="flex flex-col items-center text-center p-8 bg-white rounded-xl border border-red-200 max-w-md">
           <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
-          <h3 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h3>
+          <h3 className="text-lg font-semibold text-red-700 mb-2">
+            Error Loading Data
+          </h3>
           <p className="text-slate-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
@@ -152,35 +170,41 @@ export default function SCurvePage() {
           <p className="text-rose-100 max-w-2xl text-sm md:text-base font-light">
             Compare planned versus actual project progress over time
           </p>
-          
-          {/* Project Selection Dropdown */}
-          <div className="mt-4">
-            <label htmlFor="project-select" className="block text-sm font-medium text-rose-100 mb-2">
-              Select Project:
-            </label>
-            <select
-              id="project-select"
-              value={selectedProject || ""}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2focus:ring-rose-300"
-            >
-              <option value="all">All Projects (Combined)</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </div>
 
       <div className="container mx-auto max-w-6xl py-8 px-6">
+        {/* Project Selection Dropdown moved to top of main content */}
+        <div className="mb-6">
+          <label
+            htmlFor="project-select"
+            className="block text-sm font-medium text-black mb-2"
+          >
+            Select Project:
+          </label>
+          <select
+            id="project-select"
+            value={selectedProject || ""}
+            onChange={(e) => setSelectedProject(e.target.value || null)}
+            className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-2 text-black focus:outline-none focus:ring-2 focus:ring-rose-300 w-full md:w-auto"
+          >
+            <option value="">Select a project...</option>
+            <option value="all">All Projects (Combined)</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Export button for the selected project */}
-        {selectedProject !== "all" && selectedProject !== null && (
+        {selectedProject !== "all" && selectedProject !== "" && (
           <div className="mb-6 flex justify-end">
             <SCurveExportButton
-              project={projects.find(p => p.id === selectedProject) || projects[0]}
+              project={
+                projects.find((p) => p.id === selectedProject) || projects[0]
+              }
               wbsItems={wbsItems}
               progressLogs={progressLogs}
               chartRef={chartRef} // Pass the chart ref to the export button
@@ -199,9 +223,9 @@ export default function SCurvePage() {
                 Current Status
               </CardTitle>
               <CardDescription>
-                {selectedProject === "all" 
-                  ? "Overall project progress comparison" 
-                  : `Progress for "${projects.find(p => p.id === selectedProject)?.name}"`}
+                {selectedProject === "all" || selectedProject === ""
+                  ? "Overall project progress comparison"
+                  : `Progress for "${projects.find((p) => p.id === selectedProject)?.name}"`}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -238,8 +262,8 @@ export default function SCurvePage() {
                 Status Indicator
               </CardTitle>
               <CardDescription>
-                {selectedProject === "all" 
-                  ? "Overall project health based on variance" 
+                {selectedProject === "all" || selectedProject === ""
+                  ? "Overall project health based on variance"
                   : "Project health based on variance"}
               </CardDescription>
             </CardHeader>
@@ -326,13 +350,15 @@ export default function SCurvePage() {
               Progress Over Time
             </CardTitle>
             <CardDescription>
-              {selectedProject === "all" 
-                ? "Planned vs Actual progress curve (All Projects)" 
-                : `Planned vs Actual progress curve for "${projects.find(p => p.id === selectedProject)?.name}"`}
+              {selectedProject === "all" || selectedProject === ""
+                ? "Planned vs Actual progress curve (All Projects)"
+                : `Planned vs Actual progress curve for "${projects.find((p) => p.id === selectedProject)?.name}"`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-96" ref={chartRef}> {/* Add ref to the chart container */}
+            <div className="h-96" ref={chartRef}>
+              {" "}
+              {/* Add ref to the chart container */}
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={combinedData}
@@ -427,14 +453,21 @@ export default function SCurvePage() {
                       Planned: 50%
                     </Badge>
                     <Badge
-                      variant={Math.max(0, Math.min(50, latestPoint?.actual || 0)) >= 50 ? "secondary" : "outline"}
+                      variant={
+                        Math.max(0, Math.min(50, latestPoint?.actual || 0)) >=
+                        50
+                          ? "secondary"
+                          : "outline"
+                      }
                       className={
-                        Math.max(0, Math.min(50, latestPoint?.actual || 0)) >= 50
+                        Math.max(0, Math.min(50, latestPoint?.actual || 0)) >=
+                        50
                           ? "bg-green-100 text-green-800"
                           : "bg-orange-100 text-orange-800"
                       }
                     >
-                      Actual: {Math.max(0, Math.min(50, latestPoint?.actual || 0))}%
+                      Actual:{" "}
+                      {Math.max(0, Math.min(50, latestPoint?.actual || 0))}%
                     </Badge>
                   </div>
                 </div>
@@ -450,14 +483,21 @@ export default function SCurvePage() {
                       Planned: 100%
                     </Badge>
                     <Badge
-                      variant={Math.max(0, Math.min(100, latestPoint?.actual || 0)) >= 100 ? "secondary" : "outline"}
+                      variant={
+                        Math.max(0, Math.min(100, latestPoint?.actual || 0)) >=
+                        100
+                          ? "secondary"
+                          : "outline"
+                      }
                       className={
-                        Math.max(0, Math.min(100, latestPoint?.actual || 0)) >= 100
+                        Math.max(0, Math.min(100, latestPoint?.actual || 0)) >=
+                        100
                           ? "bg-green-100 text-green-800"
                           : "bg-orange-100 text-orange-800"
                       }
                     >
-                      Actual: {Math.max(0, Math.min(100, latestPoint?.actual || 0))}%
+                      Actual:{" "}
+                      {Math.max(0, Math.min(100, latestPoint?.actual || 0))}%
                     </Badge>
                   </div>
                 </div>
@@ -477,26 +517,31 @@ export default function SCurvePage() {
                 <li className="text-slate-600">
                   Selected Project:{" "}
                   <span className="font-medium">
-                    {selectedProject === "all" 
-                      ? "All Projects Combined" 
-                      : projects.find(p => p.id === selectedProject)?.name}
+                    {selectedProject === ""
+                      ? "None Selected"
+                      : selectedProject === "all"
+                        ? "All Projects Combined"
+                        : projects.find((p) => p.id === selectedProject)?.name}
                   </span>
                 </li>
                 <li className="text-slate-600">
-                  Total WBS Items Analyzed: <span className="font-medium">{wbsItems.length}</span>
+                  Total WBS Items Analyzed:{" "}
+                  <span className="font-medium">{wbsItems.length}</span>
                 </li>
                 <li className="text-slate-600">
-                  Total Progress Logs: <span className="font-medium">{progressLogs.length}</span>
+                  Total Progress Logs:{" "}
+                  <span className="font-medium">{progressLogs.length}</span>
                 </li>
                 <li className="text-slate-600">
-                  Data Range: <span className="font-medium">
-                    {combinedData.length > 0 
-                      ? `${combinedData[0].date} to ${combinedData[combinedData.length - 1].date}` 
-                      : 'No data available'}
+                  Data Range:{" "}
+                  <span className="font-medium">
+                    {combinedData.length > 0
+                      ? `${combinedData[0].date} to ${combinedData[combinedData.length - 1].date}`
+                      : "No data available"}
                   </span>
                 </li>
                 <li className="text-slate-600">
-                  {combinedData.length > 0 
+                  {combinedData.length > 0
                     ? "The project is currently " +
                       (variance >= 0
                         ? "ahead of or on track with the planned schedule"
