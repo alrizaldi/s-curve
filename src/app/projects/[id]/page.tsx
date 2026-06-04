@@ -5,7 +5,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Correct import
 import { Progress } from '@/components/ui/progress';
 import { WBSItem, WBSItemWithChildren, Milestone } from '@/types';
 import { getWBSItems } from '@/actions/wbs';
@@ -237,181 +237,195 @@ export default function ProjectDetailPage() {
         </div>
 
         <Tabs defaultValue="wbs" className="space-y-4">
-          <TabsList className="bg-slate-100 border border-slate-200 p-1 w-full">
-            <TabsTrigger value="wbs" className="flex-1">Work Breakdown</TabsTrigger>
-            <TabsTrigger value="milestones" className="flex-1">Milestones</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-slate-100 border border-slate-200 p-1 rounded-lg">
+            <TabsTrigger 
+              value="wbs" 
+              className="py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200 rounded-md text-slate-600 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center"
+            >
+              <FolderKanban className="h-4 w-4 mr-2" />
+              Work Breakdown
+            </TabsTrigger>
+            <TabsTrigger 
+              value="milestones" 
+              className="py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200 rounded-md text-slate-600 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center"
+            >
+              <Flag className="h-4 w-4 mr-2" />
+              Milestones
+            </TabsTrigger>
           </TabsList>
           
-          {/* WBS TAB CONTENT */}
-          <TabsContent value="wbs" className="space-y-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <FolderKanban className="h-5 w-5 text-indigo-600" />
-                Work Breakdown Structure
-              </h2>
-              <Button size="sm" asChild variant="outline" className="text-xs border-indigo-100 text-indigo-700 hover:bg-indigo-50">
-                <Link href={`/projects/${project.id}/wbs`}>Edit Tree</Link>
-              </Button>
-            </div>
-
-            {loadingDetails ? (
-              <div className="flex items-center justify-center py-10">
-                <div className="flex flex-col items-center">
-                  <Loader2 className="h-6 w-6 text-indigo-600 animate-spin" />
-                  <p className="mt-2 text-sm text-slate-500">Loading WBS items...</p>
-                </div>
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            {/* WBS TAB CONTENT */}
+            <TabsContent value="wbs" className="space-y-4 m-0">
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <FolderKanban className="h-5 w-5 text-indigo-600" />
+                  Work Breakdown Structure
+                </h2>
+                <Button size="sm" asChild variant="outline" className="text-xs border-indigo-100 text-indigo-700 hover:bg-indigo-50">
+                  <Link href={`/projects/${project.id}/wbs`}>Edit Tree</Link>
+                </Button>
               </div>
-            ) : wbsTree.length === 0 ? (
-              <Card className="py-8 text-center bg-white border border-slate-100">
-                <CardHeader>
-                  <CardTitle className="text-slate-600 text-lg">No WBS items configured yet.</CardTitle>
-                  <CardDescription className="text-slate-400">
-                    Define your work breakdown structure to organize project tasks
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700">
-                    <Link href={`/projects/${project.id}/wbs`}>Define WBS</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {wbsTree.map((item) => (
-                  <Card key={item.id} className="bg-white border border-slate-100 hover:shadow-sm transition-all duration-200 hover:border-indigo-200">
-                    <CardHeader className="pb-3">
-                      <div className="flex justify-between items-start gap-4">
-                        <div>
-                          <CardTitle className="text-base font-semibold text-slate-800">{item.name}</CardTitle>
-                          {item.description && <CardDescription className="text-xs text-slate-500">{item.description}</CardDescription>}
+
+              {loadingDetails ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="flex flex-col items-center">
+                    <Loader2 className="h-6 w-6 text-indigo-600 animate-spin" />
+                    <p className="mt-2 text-sm text-slate-500">Loading WBS items...</p>
+                  </div>
+                </div>
+              ) : wbsTree.length === 0 ? (
+                <Card className="py-8 text-center bg-white border border-slate-100">
+                  <CardHeader>
+                    <CardTitle className="text-slate-600 text-lg">No WBS items configured yet.</CardTitle>
+                    <CardDescription className="text-slate-400">
+                      Define your work breakdown structure to organize project tasks
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+                      <Link href={`/projects/${project.id}/wbs`}>Define WBS</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {wbsTree.map((item) => (
+                    <Card key={item.id} className="bg-white border border-slate-100 hover:shadow-sm transition-all duration-200 hover:border-indigo-200">
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start gap-4">
+                          <div>
+                            <CardTitle className="text-base font-semibold text-slate-800">{item.name}</CardTitle>
+                            {item.description && <CardDescription className="text-xs text-slate-500">{item.description}</CardDescription>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">
+                              Weight: {item.weight}
+                            </Badge>
+                            <Badge 
+                              variant={
+                                item.status === 'Completed' ? 'secondary' :
+                                item.status === 'In Progress' ? 'default' :
+                                item.status === 'Delayed' ? 'destructive' : 'outline'
+                              }
+                              className="text-xs"
+                            >
+                              {item.status}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">
-                            Weight: {item.weight}
-                          </Badge>
+                      </CardHeader>
+                      <CardContent className="pb-3 pt-0">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs text-slate-500 font-medium">
+                            <span>Progress</span>
+                            <span>{item.progress}%</span>
+                          </div>
+                          <Progress value={item.progress} className="w-full h-1.5" />
+                          <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">
+                            <span>Start: {new Date(item.planned_start).toLocaleDateString()}</span>
+                            <span>End: {new Date(item.planned_end).toLocaleDateString()}</span>
+                          </div>
+                          
+                          {/* Render children items */}
+                          {item.children && item.children.length > 0 && (
+                            <div className="mt-4 pl-4 border-l-2 border-slate-100 space-y-3">
+                              {item.children.map((child) => (
+                                <div key={child.id} className="py-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100/50 hover:bg-slate-50">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="font-semibold text-xs text-slate-700">{child.name}</span>
+                                    <Badge 
+                                      variant={
+                                        child.status === 'Completed' ? 'secondary' :
+                                        child.status === 'In Progress' ? 'default' :
+                                        child.status === 'Delayed' ? 'destructive' : 'outline'
+                                      }
+                                      className="text-[10px] py-0 px-1.5"
+                                    >
+                                      {child.status}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center mt-1 gap-2">
+                                    <Progress value={child.progress} className="flex-1 h-1" />
+                                    <span className="text-[10px] font-bold text-slate-500 w-8">{child.progress}%</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* MILESTONES TAB CONTENT */}
+            <TabsContent value="milestones" className="space-y-4 m-0">
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <Flag className="h-5 w-5 text-emerald-600" />
+                  Project Milestones
+                </h2>
+                <Button size="sm" asChild variant="outline" className="text-xs border-emerald-100 text-emerald-700 hover:bg-emerald-50">
+                  <Link href={`/projects/${project.id}/milestones`}>Manage Milestones</Link>
+                </Button>
+              </div>
+
+              {loadingDetails ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="flex flex-col items-center">
+                    <Loader2 className="h-6 w-6 text-emerald-600 animate-spin" />
+                    <p className="mt-2 text-sm text-slate-500">Loading milestones...</p>
+                  </div>
+                </div>
+              ) : milestones.length === 0 ? (
+                <Card className="py-8 text-center bg-white border border-slate-100">
+                  <CardHeader>
+                    <CardTitle className="text-slate-600 text-lg">No milestones configured yet.</CardTitle>
+                    <CardDescription className="text-slate-400">
+                      Add milestones to track important project deadlines
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                      <Link href={`/projects/${project.id}/milestones`}>Add Milestones</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {milestones.map((m) => (
+                    <Card key={m.id} className="bg-white border border-slate-100 hover:shadow-sm transition-all duration-200 hover:border-emerald-200">
+                      <CardHeader className="py-3 flex flex-row items-center justify-between gap-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-semibold text-sm text-slate-700">{m.name}</span>
                           <Badge 
                             variant={
-                              item.status === 'Completed' ? 'secondary' :
-                              item.status === 'In Progress' ? 'default' :
-                              item.status === 'Delayed' ? 'destructive' : 'outline'
+                              m.status === 'Completed' ? 'secondary' : 
+                              m.status === 'Delayed' ? 'destructive' : 'outline'
                             }
-                            className="text-xs"
+                            className="text-[10px]"
                           >
-                            {item.status}
+                            {m.status}
                           </Badge>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pb-3 pt-0">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-slate-500 font-medium">
-                          <span>Progress</span>
-                          <span>{item.progress}%</span>
-                        </div>
-                        <Progress value={item.progress} className="w-full h-1.5" />
-                        <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">
-                          <span>Start: {new Date(item.planned_start).toLocaleDateString()}</span>
-                          <span>End: {new Date(item.planned_end).toLocaleDateString()}</span>
-                        </div>
-                        
-                        {/* Render children items */}
-                        {item.children && item.children.length > 0 && (
-                          <div className="mt-4 pl-4 border-l-2 border-slate-100 space-y-3">
-                            {item.children.map((child) => (
-                              <div key={child.id} className="py-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100/50 hover:bg-slate-50">
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="font-semibold text-xs text-slate-700">{child.name}</span>
-                                  <Badge 
-                                    variant={
-                                      child.status === 'Completed' ? 'secondary' :
-                                      child.status === 'In Progress' ? 'default' :
-                                      child.status === 'Delayed' ? 'destructive' : 'outline'
-                                    }
-                                    className="text-[10px] py-0 px-1.5"
-                                  >
-                                    {child.status}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center mt-1 gap-2">
-                                  <Progress value={child.progress} className="flex-1 h-1" />
-                                  <span className="text-[10px] font-bold text-slate-500 w-8">{child.progress}%</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* MILESTONES TAB CONTENT */}
-          <TabsContent value="milestones" className="space-y-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <Flag className="h-5 w-5 text-emerald-600" />
-                Project Milestones
-              </h2>
-              <Button size="sm" asChild variant="outline" className="text-xs border-emerald-100 text-emerald-700 hover:bg-emerald-50">
-                <Link href={`/projects/${project.id}/milestones`}>Manage Milestones</Link>
-              </Button>
-            </div>
-
-            {loadingDetails ? (
-              <div className="flex items-center justify-center py-10">
-                <div className="flex flex-col items-center">
-                  <Loader2 className="h-6 w-6 text-emerald-600 animate-spin" />
-                  <p className="mt-2 text-sm text-slate-500">Loading milestones...</p>
+                        <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                          <Calendar className="h-3 w-3" /> Due: {new Date(m.due_date).toLocaleDateString()}
+                        </span>
+                      </CardHeader>
+                      {m.description && (
+                        <CardContent className="pb-3 text-xs text-slate-500 pt-0">
+                          {m.description}
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
                 </div>
-              </div>
-            ) : milestones.length === 0 ? (
-              <Card className="py-8 text-center bg-white border border-slate-100">
-                <CardHeader>
-                  <CardTitle className="text-slate-600 text-lg">No milestones configured yet.</CardTitle>
-                  <CardDescription className="text-slate-400">
-                    Add milestones to track important project deadlines
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-                    <Link href={`/projects/${project.id}/milestones`}>Add Milestones</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {milestones.map((m) => (
-                  <Card key={m.id} className="bg-white border border-slate-100 hover:shadow-sm transition-all duration-200 hover:border-emerald-200">
-                    <CardHeader className="py-3 flex flex-row items-center justify-between gap-4">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-semibold text-sm text-slate-700">{m.name}</span>
-                        <Badge 
-                          variant={
-                            m.status === 'Completed' ? 'secondary' : 
-                            m.status === 'Delayed' ? 'destructive' : 'outline'
-                          }
-                          className="text-[10px]"
-                        >
-                          {m.status}
-                        </Badge>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                        <Calendar className="h-3 w-3" /> Due: {new Date(m.due_date).toLocaleDateString()}
-                      </span>
-                    </CardHeader>
-                    {m.description && (
-                      <CardContent className="pb-3 text-xs text-slate-500 pt-0">
-                        {m.description}
-                      </CardContent>
-                    )}
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
+              )}
+            </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>

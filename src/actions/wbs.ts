@@ -231,6 +231,30 @@ export async function deleteWBSItem(projectId: string, id: string): Promise<void
 }
 
 /**
+ * Fetch progress logs for a specific project
+ */
+export async function getProgressLogs(projectId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('ProgressLog')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false }); // Order by newest first
+
+  if (error) {
+    console.error('Error fetching progress logs:', error);
+    throw new Error('Failed to fetch progress logs');
+  }
+
+  // Convert date strings to Date objects
+  return (data || []).map(log => ({
+    ...log,
+    created_at: log.created_at ? new Date(log.created_at) : new Date(),
+  }));
+}
+
+/**
  * Recalculate parent progress recursively based on leaf nodes
  */
 export async function recalculateWBSProgress(projectId: string): Promise<void> {

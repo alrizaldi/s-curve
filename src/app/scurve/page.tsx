@@ -18,87 +18,95 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SChartDataPoint } from "@/types";
+import { SChartDataPoint, WBSItem, ProgressLog } from "@/types";
+import { getWBSItems, getProgressLogs } from "@/actions/wbs";  // Import only getWBSItems and getProgressLogs from wbs
+import { getProjects } from "@/actions/projects";  // Import getProjects from the correct location
 import {
   calculatePlannedCurve,
   calculateActualCurve,
   combineCurves,
 } from "@/services/scurve";
-import { TrendingUp, AlertTriangle, CheckCircle, Activity } from "lucide-react";
-
-// Mock data for demonstration
-const mockWBSItems = [
-  {
-    id: "1",
-    project_id: "proj-1",
-    parent_id: undefined,
-    name: "Phase 1",
-    description: "Initial project phase",
-    weight: 30,
-    progress: 45,
-    planned_start: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-    planned_end: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
-    status: "In Progress" as const, // Explicitly typed to match WBSItemStatus
-    sort_order: 1,
-    created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
-    updated_at: new Date(),
-  },
-  {
-    id: "2",
-    project_id: "proj-1",
-    parent_id: undefined,
-    name: "Phase 2",
-    description: "Second project phase",
-    weight: 40,
-    progress: 10,
-    planned_start: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-    planned_end: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000),
-    status: "Not Started" as const, // Explicitly typed to match WBSItemStatus
-    sort_order: 2,
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    updated_at: new Date(),
-  },
-];
-
-const mockProgressLogs = [
-  {
-    id: "log-1",
-    project_id: "proj-1",
-    wbs_item_id: "1",
-    progress: 15,
-    remarks: "Initial progress",
-    created_by: "user-1",
-    created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "log-2",
-    project_id: "proj-1",
-    wbs_item_id: "1",
-    progress: 20,
-    remarks: "Mid-phase progress",
-    created_by: "user-1",
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "log-3",
-    project_id: "proj-1",
-    wbs_item_id: "1",
-    progress: 10,
-    remarks: "Additional progress",
-    created_by: "user-1",
-    created_at: new Date(Date.now()),
-  },
-];
+import { TrendingUp, AlertTriangle, CheckCircle, Activity, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function SCurvePage() {
-  // Calculate the S-Curve data
-  const plannedData = calculatePlannedCurve(mockWBSItems);
-  const actualData = calculateActualCurve(mockProgressLogs, mockWBSItems);
+  const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
+  const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // Get all projects first to determine which ones to include
+        const projects = await getProjects();
+        
+        // For now, we'll get WBS items for all projects, but in the future
+        // we might want to filter by specific project or date range
+        let allWbsItems: WBSItem[] = [];
+        let allProgressLogs: ProgressLog[] = [];
+        
+        // Fetch WBS items for each project
+        for (const project of projects) {
+          const projectWbsItems = await getWBSItems(project.id);
+          allWbsItems = [...allWbsItems, ...projectWbsItems];
+          
+          // Fetch progress logs for this project
+          const projectProgressLogs = await getProgressLogs(project.id);
+          allProgressLogs = [...allProgressLogs, ...projectProgressLogs];
+        }
+        
+        setWbsItems(allWbsItems);
+        setProgressLogs(allProgressLogs);
+      } catch (err) {
+        console.error("Error fetching S-Curve data:", err);
+        setError(err instanceof Error ? err.message : "Failed to load S-Curve data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Calculate the S-Curve data using real data
+  const plannedData = calculatePlannedCurve(wbsItems);
+  const actualData = calculateActualCurve(progressLogs, wbsItems);
   const combinedData = combineCurves(plannedData, actualData);
 
   // Calculate overall variance
   const latestPoint = combinedData[combinedData.length - 1];
   const variance = latestPoint ? latestPoint.actual - latestPoint.planned : 0;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-4" />
+          <p className="text-slate-600">Loading S-Curve data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+        <div className="flex flex-col items-center text-center p-8 bg-white rounded-xl border border-red-200 max-w-md">
+          <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+          <h3 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h3>
+          <p className="text-slate-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -336,7 +344,7 @@ export default function SCurvePage() {
                           : "bg-orange-100 text-orange-800"
                       }
                     >
-                      Actual: 25%
+                      Actual: {Math.min(25, latestPoint?.actual || 0)}%
                     </Badge>
                   </div>
                 </div>
@@ -352,14 +360,14 @@ export default function SCurvePage() {
                       Planned: 50%
                     </Badge>
                     <Badge
-                      variant={45 >= 50 ? "secondary" : "outline"}
+                      variant={Math.max(0, Math.min(50, latestPoint?.actual || 0)) >= 50 ? "secondary" : "outline"}
                       className={
-                        45 >= 50
+                        Math.max(0, Math.min(50, latestPoint?.actual || 0)) >= 50
                           ? "bg-green-100 text-green-800"
                           : "bg-orange-100 text-orange-800"
                       }
                     >
-                      Actual: 45%
+                      Actual: {Math.max(0, Math.min(50, latestPoint?.actual || 0))}%
                     </Badge>
                   </div>
                 </div>
@@ -375,14 +383,14 @@ export default function SCurvePage() {
                       Planned: 100%
                     </Badge>
                     <Badge
-                      variant={45 >= 100 ? "secondary" : "outline"}
+                      variant={Math.max(0, Math.min(100, latestPoint?.actual || 0)) >= 100 ? "secondary" : "outline"}
                       className={
-                        45 >= 100
+                        Math.max(0, Math.min(100, latestPoint?.actual || 0)) >= 100
                           ? "bg-green-100 text-green-800"
                           : "bg-orange-100 text-orange-800"
                       }
                     >
-                      Actual: 45%
+                      Actual: {Math.max(0, Math.min(100, latestPoint?.actual || 0))}%
                     </Badge>
                   </div>
                 </div>
@@ -400,22 +408,25 @@ export default function SCurvePage() {
             <CardContent>
               <ul className="list-disc pl-5 space-y-2">
                 <li className="text-slate-600">
-                  The project is currently{" "}
-                  <span className="font-medium">
-                    behind the planned schedule
+                  Total WBS Items Analyzed: <span className="font-medium">{wbsItems.length}</span>
+                </li>
+                <li className="text-slate-600">
+                  Total Progress Logs: <span className="font-medium">{progressLogs.length}</span>
+                </li>
+                <li className="text-slate-600">
+                  Data Range: <span className="font-medium">
+                    {combinedData.length > 0 
+                      ? `${combinedData[0].date} to ${combinedData[combinedData.length - 1].date}` 
+                      : 'No data available'}
                   </span>
                 </li>
                 <li className="text-slate-600">
-                  <span className="font-medium">Early phases</span> were
-                  completed on time but momentum has slowed
-                </li>
-                <li className="text-slate-600">
-                  <span className="font-medium">Immediate action</span> required
-                  to get back on track
-                </li>
-                <li className="text-slate-600">
-                  <span className="font-medium">Focus on high-weight</span>{" "}
-                  activities to maximize impact
+                  {combinedData.length > 0 
+                    ? "The project is currently " +
+                      (variance >= 0
+                        ? "ahead of or on track with the planned schedule"
+                        : "behind the planned schedule")
+                    : "No progress data available yet"}
                 </li>
               </ul>
             </CardContent>
