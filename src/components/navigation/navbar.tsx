@@ -13,19 +13,15 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!supabase) {
-      console.error('Navbar: Supabase client not available');
+      console.error("Navbar: Supabase client not available");
       setInitialized(true);
       return;
     }
-    
-    console.log('Navbar: useEffect hook running');
-    
+
     // Wrap in try-catch to handle potential errors during session retrieval
     const getSession = async () => {
       try {
-        console.log('Navbar: Getting session...');
         const { data } = await supabase!.auth.getSession(); // Non-null assertion since we check above
-        console.log('Navbar: Session data received:', data.session);
         setSession(data.session);
       } catch (error) {
         console.warn("Navbar: Error getting session:", error);
@@ -37,10 +33,10 @@ export default function Navbar() {
     getSession();
 
     // Subscribe to auth state changes with error handling
-    console.log('Navbar: Setting up auth state change listener');
-    const { data: { subscription } } = supabase!.auth.onAuthStateChange(async (_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase!.auth.onAuthStateChange(async (_event, session) => {
       try {
-        console.log('Navbar: Auth state changed, event:', _event, 'session:', session);
         setSession(session);
       } catch (error) {
         console.warn("Navbar: Error in auth state change:", error);
@@ -48,7 +44,6 @@ export default function Navbar() {
     });
 
     return () => {
-      console.log('Navbar: Cleaning up auth state change listener');
       try {
         subscription.unsubscribe();
       } catch (error) {
@@ -59,19 +54,17 @@ export default function Navbar() {
 
   const handleSignOut = async () => {
     if (!supabase) {
-      console.error('Navbar: Supabase client not available');
-      router.push('/auth/login');
+      console.error("Navbar: Supabase client not available");
+      router.push("/auth/login");
       return;
     }
-    
-    console.log('Navbar: Signing out...');
+
     try {
       await supabase!.auth.signOut(); // Non-null assertion since we check above
-      console.log('Navbar: Successfully signed out, redirecting to login');
-      router.push('/auth/login'); // 更正为正确的登录页面路径
+      router.push("/auth/login"); // 更正为正确的登录页面路径
     } catch (error) {
       console.error("Navbar: Error signing out:", error);
-      router.push('/auth/login'); // Still redirect to login page even if sign out fails
+      router.push("/auth/login"); // Still redirect to login page even if sign out fails
     }
   };
 
@@ -92,43 +85,72 @@ export default function Navbar() {
     );
   }
 
-  console.log('Navbar: Rendering, session status:', session ? 'authenticated' : 'not authenticated');
-
   return (
     <header className="border-b">
       <div className="container flex h-16 items-center justify-between px-4">
-        <Link href="/" className="flex items-center space-x-2" onClick={() => console.log('Navbar: Clicked home link')}>
+        <Link
+          href="/"
+          className="flex items-center space-x-2"
+          onClick={() => console.log("Navbar: Clicked home link")}
+        >
           <span className="text-xl font-bold">S-Curve</span>
         </Link>
-        
+
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
-          <Link href="/dashboard" className="transition-colors hover:text-primary" onClick={() => console.log('Navbar: Clicked dashboard link')}>
+          <Link
+            href="/dashboard"
+            className="transition-colors hover:text-primary"
+            onClick={() => console.log("Navbar: Clicked dashboard link")}
+          >
             Dashboard
           </Link>
-          <Link href="/projects" className="transition-colors hover:text-primary" onClick={() => console.log('Navbar: Clicked projects link')}>
+          <Link
+            href="/projects"
+            className="transition-colors hover:text-primary"
+            onClick={() => console.log("Navbar: Clicked projects link")}
+          >
             Projects
           </Link>
-          <Link href="/wbs" className="transition-colors hover:text-primary" onClick={() => console.log('Navbar: Clicked WBS link')}>
+          <Link
+            href="/wbs"
+            className="transition-colors hover:text-primary"
+            onClick={() => console.log("Navbar: Clicked WBS link")}
+          >
             WBS
           </Link>
-          <Link href="/milestones" className="transition-colors hover:text-primary" onClick={() => console.log('Navbar: Clicked milestones link')}>
+          <Link
+            href="/milestones"
+            className="transition-colors hover:text-primary"
+            onClick={() => console.log("Navbar: Clicked milestones link")}
+          >
             Milestones
           </Link>
-          <Link href="/scurve" className="transition-colors hover:text-primary" onClick={() => console.log('Navbar: Clicked S-Curve link')}>
+          <Link
+            href="/scurve"
+            className="transition-colors hover:text-primary"
+            onClick={() => console.log("Navbar: Clicked S-Curve link")}
+          >
             S-Curve
           </Link>
         </nav>
-        
+
         <div className="flex items-center space-x-4">
           {session ? (
             <div className="flex items-center space-x-2">
-              <span className="text-sm">{session.user?.email || session.user?.user_metadata?.email || 'User'}</span>
+              <span className="text-sm">
+                {session.user?.email ||
+                  session.user?.user_metadata?.email ||
+                  "User"}
+              </span>
               <Button onClick={handleSignOut} variant="outline" size="sm">
                 Sign Out
               </Button>
             </div>
           ) : (
-            <Link href="/auth/login" onClick={() => console.log('Navbar: Clicked sign in link')}>
+            <Link
+              href="/auth/login"
+              onClick={() => console.log("Navbar: Clicked sign in link")}
+            >
               <Button variant="outline" size="sm">
                 Sign In
               </Button>

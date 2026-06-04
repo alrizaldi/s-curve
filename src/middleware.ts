@@ -2,38 +2,23 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  console.log(
-    "[Middleware][RequestProcessing] Processing request for URL:",
-    request.nextUrl.pathname,
-  );
-
   let response = NextResponse.next();
 
   try {
     // Create Supabase client with proper cookie handling for authentication
-    console.log("[Middleware][SupabaseClient] Creating Supabase server client");
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            console.log(
-              "[Middleware][Cookies] Getting all cookies from request",
-            );
             const allCookies = request.cookies.getAll();
             // console.log("[Middleware][Cookies] All cookies:", allCookies);
             return allCookies;
           },
           // Properly handle setting cookies to sync auth state
           setAll(cookiesToSet) {
-            console.log(
-              "[Middleware][Cookies] Setting cookies:",
-              cookiesToSet.length,
-            );
             cookiesToSet.forEach(({ name, value, options }) => {
-              console.log("[Middleware][CookieSet]", name, "options:", options);
-
               // Sanitize cookie name to ensure compatibility
               const sanitizedOptions = {
                 ...options,
@@ -61,17 +46,10 @@ export async function middleware(request: NextRequest) {
     // Get the session with error handling
     let session = null;
     try {
-      console.log("[Middleware][SessionCheck] Attempting to get session");
       const {
         data: { session: fetchedSession },
       } = await supabase.auth.getSession();
       session = fetchedSession;
-      console.log(
-        "[Middleware][SessionCheck] Session check complete, session exists:",
-        !!session,
-        "user ID:",
-        session?.user?.id,
-      );
 
       // Additional debug: Check if there are auth cookies present
       const allCookies = request.cookies.getAll();
@@ -79,14 +57,6 @@ export async function middleware(request: NextRequest) {
         (cookie) =>
           cookie.name.includes("sb-") && cookie.name.includes("-auth-token"),
       );
-      // console.log('[Middleware][AuthDebug] Total cookies:', allCookies.length);
-      // console.log('[Middleware][AuthDebug] Found auth-related cookies:', authCookies.length, 'details:', authCookies);
-
-      // Log all cookie names for debugging
-      // console.log(
-      //   "[Middleware][AuthDebug] All cookie names:",
-      //   allCookies.map((c) => c.name),
-      // );
     } catch (error) {
       console.warn("[Middleware][SessionCheck] Error getting session:", error);
     }
@@ -106,30 +76,13 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith(path),
     );
 
-    console.log(
-      "[Middleware][RouteInfo] Path:",
-      request.nextUrl.pathname,
-      "Is protected:",
-      isProtectedRoute,
-      "Is public auth:",
-      isPublicRoute,
-      "Has session:",
-      !!session,
-    );
-
     // If accessing a protected route without a session, redirect to login
     if (isProtectedRoute && !session) {
-      console.log(
-        "[Middleware][Redirect] Redirecting to login - protected route accessed without session",
-      );
       return NextResponse.redirect(new URL("/auth/login", request.url));
     }
 
     // If accessing a public auth route but already logged in, redirect to dashboard
     if (isPublicRoute && session) {
-      console.log(
-        "[Middleware][Redirect] Redirecting to dashboard - public auth route accessed while logged in",
-      );
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   } catch (error) {
@@ -144,7 +97,6 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  console.log("[Middleware][Response] Request processed, returning response");
   return response;
 }
 

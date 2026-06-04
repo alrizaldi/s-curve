@@ -1,109 +1,123 @@
-'use client';
+"use client";
 
-import { useState, useEffect, use } from 'react';
-import { getWBSItems, createWBSItem, updateWBSItem, deleteWBSItem } from '@/actions/wbs';
-import { getProjects } from '@/actions/projects';
-import { WBSItem, WBSItemFormValues, WBSItemStatus, Project } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  ArrowLeft, 
-  Loader2, 
-  Sliders, 
-  Check, 
+import { useState, useEffect, use } from "react";
+import {
+  getWBSItems,
+  createWBSItem,
+  updateWBSItem,
+  deleteWBSItem,
+} from "@/actions/wbs";
+import { getProjects } from "@/actions/projects";
+import { WBSItem, WBSItemFormValues, WBSItemStatus, Project } from "@/types";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import {
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Trash2,
+  Edit3,
+  ArrowLeft,
+  Loader2,
+  Sliders,
+  Check,
   MessageSquare,
-  Network
-} from 'lucide-react';
-import Link from 'next/link';
+  Network,
+} from "lucide-react";
+import Link from "next/link";
 
 type PageParams = {
   id: string;
 };
 
-export default function ProjectWBSPage({ params }: { params: Promise<PageParams> }) {
+export default function ProjectWBSPage({
+  params,
+}: {
+  params: Promise<PageParams>;
+}) {
   const resolvedParams = use(params);
   const projectId = resolvedParams.id;
 
   const [project, setProject] = useState<Project | null>(null);
   const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Collapse/Expand state for WBS items
-  const [collapsedItems, setCollapsedItems] = useState<Record<string, boolean>>({});
-  
+  const [collapsedItems, setCollapsedItems] = useState<Record<string, boolean>>(
+    {},
+  );
+
   // Form states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<WBSItem | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    parent_id: '',
-    weight: '1.0',
-    planned_start: '',
-    planned_end: '',
-    status: 'Not Started' as WBSItemStatus,
+    name: "",
+    description: "",
+    parent_id: "",
+    weight: "1.0",
+    planned_start: "",
+    planned_end: "",
+    status: "Not Started" as WBSItemStatus,
   });
 
   // Progress update state
-  const [progressUpdateItem, setProgressUpdateItem] = useState<WBSItem | null>(null);
+  const [progressUpdateItem, setProgressUpdateItem] = useState<WBSItem | null>(
+    null,
+  );
   const [progressValue, setProgressValue] = useState(0);
-  const [progressRemarks, setProgressRemarks] = useState('');
+  const [progressRemarks, setProgressRemarks] = useState("");
   const [submittingProgress, setSubmittingProgress] = useState(false);
 
   // Load project details and WBS items
   const loadData = async () => {
-    console.log('[WBSPage][LoadData] Starting to load data for project:', projectId);
     try {
       setLoading(true);
-      console.log('[WBSPage][LoadData] Calling getProjects and getWBSItems...');
       const [projectsList, wbsList] = await Promise.all([
         getProjects(),
-        getWBSItems(projectId)
+        getWBSItems(projectId),
       ]);
-      console.log('[WBSPage][LoadData] Data retrieved - Projects count:', projectsList.length, 'WBS items count:', wbsList.length);
-      
-      const foundProject = projectsList.find(p => p.id === projectId);
-      console.log('[WBSPage][LoadData] Found project:', foundProject ? foundProject.name : 'NOT FOUND');
-      
+
+      const foundProject = projectsList.find((p) => p.id === projectId);
+
       if (foundProject) setProject(foundProject);
-      console.log('[WBSPage][LoadData] Setting WBS items:', wbsList);
       setWbsItems(wbsList);
     } catch (error) {
-      console.error('[WBSPage][LoadData] Failed to load data:', error);
+      console.error("[WBSPage][LoadData] Failed to load data:", error);
     } finally {
-      console.log('[WBSPage][LoadData] Setting loading to false');
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    console.log('[WBSPage][Effect] Running effect for projectId:', projectId);
     loadData();
   }, [projectId]);
 
   // Check if an item is a parent node (has children)
   const isParent = (itemId: string) => {
-    console.log('[WBSPage][isParent] Checking if item has children:', itemId);
-    const hasChildren = wbsItems.some(item => item.parent_id === itemId || (itemId === 'root' && (item.parent_id === null || item.parent_id === undefined)));
-    console.log('[WBSPage][isParent] Result:', hasChildren);
+    const hasChildren = wbsItems.some(
+      (item) =>
+        item.parent_id === itemId ||
+        (itemId === "root" &&
+          (item.parent_id === null || item.parent_id === undefined)),
+    );
     return hasChildren;
   };
 
   // Get children of a WBS item
   const getChildren = (itemId: string | undefined | null) => {
-    console.log('[WBSPage][getChildren] Getting children for item:', itemId);
     // For root level (no parent), find items where parent_id is null
     // For child level, find items where parent_id matches the given ID
-    const children = wbsItems.filter(item => {
+    const children = wbsItems.filter((item) => {
       if (itemId === undefined || itemId === null) {
         // Looking for root-level items (those with no parent)
         return item.parent_id === null || item.parent_id === undefined;
@@ -112,37 +126,40 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
         return item.parent_id === itemId;
       }
     });
-    console.log('[WBSPage][getChildren] Found children count:', children.length);
     return children;
   };
 
   // Toggle Collapse/Expand
   const toggleCollapse = (itemId: string) => {
-    setCollapsedItems(prev => ({
+    setCollapsedItems((prev) => ({
       ...prev,
-      [itemId]: !prev[itemId]
+      [itemId]: !prev[itemId],
     }));
   };
 
   // Handle Form Input Change
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   // Reset form
   const resetForm = () => {
     setFormData({
-      name: '',
-      description: '',
-      parent_id: '',
-      weight: '1.0',
-      planned_start: '',
-      planned_end: '',
-      status: 'Not Started',
+      name: "",
+      description: "",
+      parent_id: "",
+      weight: "1.0",
+      planned_start: "",
+      planned_end: "",
+      status: "Not Started",
     });
     setEditingItem(null);
   };
@@ -151,12 +168,12 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
   const openFormModal = (item?: WBSItem, parentId?: string) => {
     if (item) {
       setEditingItem(item);
-      const startStr = item.planned_start.toISOString().split('T')[0];
-      const endStr = item.planned_end.toISOString().split('T')[0];
+      const startStr = item.planned_start.toISOString().split("T")[0];
+      const endStr = item.planned_end.toISOString().split("T")[0];
       setFormData({
         name: item.name,
-        description: item.description || '',
-        parent_id: item.parent_id || '',
+        description: item.description || "",
+        parent_id: item.parent_id || "",
         weight: String(item.weight),
         planned_start: startStr,
         planned_end: endStr,
@@ -165,7 +182,7 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
     } else {
       resetForm();
       if (parentId) {
-        setFormData(prev => ({ ...prev, parent_id: parentId }));
+        setFormData((prev) => ({ ...prev, parent_id: parentId }));
       }
     }
     setIsModalOpen(true);
@@ -175,7 +192,7 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.planned_start || !formData.planned_end) {
-      alert('Please fill in all required fields.');
+      alert("Please fill in all required fields.");
       return;
     }
 
@@ -201,18 +218,22 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
       resetForm();
       await loadData();
     } catch (error: any) {
-      alert(error.message || 'Operation failed.');
+      alert(error.message || "Operation failed.");
     }
   };
 
   // Handle Delete
   const handleDeleteItem = async (itemId: string) => {
-    if (confirm('Are you sure you want to delete this WBS item? Deleting a parent item will delete all of its sub-tasks recursively.')) {
+    if (
+      confirm(
+        "Are you sure you want to delete this WBS item? Deleting a parent item will delete all of its sub-tasks recursively.",
+      )
+    ) {
       try {
         await deleteWBSItem(projectId, itemId);
         await loadData();
       } catch (error: any) {
-        alert(error.message || 'Failed to delete item.');
+        alert(error.message || "Failed to delete item.");
       }
     }
   };
@@ -221,7 +242,7 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
   const openProgressModal = (item: WBSItem) => {
     setProgressUpdateItem(item);
     setProgressValue(item.progress);
-    setProgressRemarks('');
+    setProgressRemarks("");
   };
 
   // Handle Progress Submit
@@ -232,15 +253,18 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
     try {
       setSubmittingProgress(true);
       await updateWBSItem(
-        projectId, 
-        progressUpdateItem.id, 
-        { progress: progressValue, status: progressValue === 100 ? 'Completed' : 'In Progress' },
-        progressRemarks
+        projectId,
+        progressUpdateItem.id,
+        {
+          progress: progressValue,
+          status: progressValue === 100 ? "Completed" : "In Progress",
+        },
+        progressRemarks,
       );
       setProgressUpdateItem(null);
       await loadData();
     } catch (error: any) {
-      alert(error.message || 'Failed to update progress.');
+      alert(error.message || "Failed to update progress.");
     } finally {
       setSubmittingProgress(false);
     }
@@ -248,13 +272,13 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
 
   // Recursive Tree Renderer
   const renderTreeNodes = (parentId: string | undefined | null, depth = 0) => {
-    console.log('[WBSPage][renderTreeNodes] Rendering nodes for parentId:', parentId, 'at depth:', depth);
     const nodes = getChildren(parentId);
-    console.log('[WBSPage][renderTreeNodes] Nodes found:', nodes.length);
     if (nodes.length === 0) return null;
 
     return (
-      <div className={`space-y-3 ${depth > 0 ? 'pl-6 border-l border-slate-200 mt-2 ml-3' : ''}`}>
+      <div
+        className={`space-y-3 ${depth > 0 ? "pl-6 border-l border-slate-200 mt-2 ml-3" : ""}`}
+      >
         {nodes.map((node) => {
           const hasChildren = isParent(node.id);
           const isCollapsed = collapsedItems[node.id];
@@ -266,11 +290,15 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                 {/* Node Label & Expand Icon */}
                 <div className="flex items-start space-x-3 flex-1 min-w-[200px]">
                   {hasChildren ? (
-                    <button 
+                    <button
                       onClick={() => toggleCollapse(node.id)}
                       className="p-1 rounded hover:bg-slate-200 text-slate-500 mt-0.5 transition-colors"
                     >
-                      {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {isCollapsed ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
                     </button>
                   ) : (
                     <div className="w-6 flex justify-center items-center mt-1">
@@ -283,7 +311,10 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                       <span className="font-semibold text-slate-800 text-sm md:text-base">
                         {node.name}
                       </span>
-                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal text-slate-400 border-slate-200">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] py-0 px-1.5 font-normal text-slate-400 border-slate-200"
+                      >
                         Weight: {node.weight}
                       </Badge>
                       {isLeaf ? (
@@ -302,7 +333,9 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                       </p>
                     )}
                     <div className="flex items-center gap-4 text-[10px] text-slate-400 mt-1.5 font-mono">
-                      <span>Start: {node.planned_start.toLocaleDateString()}</span>
+                      <span>
+                        Start: {node.planned_start.toLocaleDateString()}
+                      </span>
                       <span>End: {node.planned_end.toLocaleDateString()}</span>
                     </div>
                   </div>
@@ -315,14 +348,21 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                       <span>Progress</span>
                       <span>{node.progress}%</span>
                     </div>
-                    <Progress value={node.progress} className="h-1.5 bg-slate-100" />
+                    <Progress
+                      value={node.progress}
+                      className="h-1.5 bg-slate-100"
+                    />
                   </div>
 
-                  <Badge 
+                  <Badge
                     variant={
-                      node.status === 'Completed' ? 'secondary' :
-                      node.status === 'In Progress' ? 'default' :
-                      node.status === 'Delayed' ? 'destructive' : 'outline'
+                      node.status === "Completed"
+                        ? "secondary"
+                        : node.status === "In Progress"
+                          ? "default"
+                          : node.status === "Delayed"
+                            ? "destructive"
+                            : "outline"
                     }
                     className="text-xs shrink-0"
                   >
@@ -332,9 +372,9 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                   {/* Actions for Node */}
                   <div className="flex items-center gap-1">
                     {isLeaf && (
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         title="Update Progress"
                         onClick={() => openProgressModal(node)}
                         className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
@@ -342,27 +382,27 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                         <Sliders className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       title="Add Sub-item"
                       onClick={() => openFormModal(undefined, node.id)}
                       className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       title="Edit Item"
                       onClick={() => openFormModal(node)}
                       className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     >
                       <Edit3 className="h-4 w-4" />
                     </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       title="Delete Item"
                       onClick={() => handleDeleteItem(node.id)}
                       className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -374,7 +414,9 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
               </div>
 
               {/* Render Children Recursively */}
-              {hasChildren && !isCollapsed && renderTreeNodes(node.id, depth + 1)}
+              {hasChildren &&
+                !isCollapsed &&
+                renderTreeNodes(node.id, depth + 1)}
             </div>
           );
         })}
@@ -386,20 +428,28 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-4" />
-        <p className="text-sm text-slate-500">Loading Work Breakdown Structure...</p>
+        <p className="text-sm text-slate-500">
+          Loading Work Breakdown Structure...
+        </p>
       </div>
     );
   }
-
-  console.log('[WBSPage][Render] Render triggered - wbsItems count:', wbsItems.length, 'loading:', loading, 'project:', !!project);
 
   return (
     <div className="min-h-screen bg-slate-50/50 py-8 px-6">
       <div className="container mx-auto max-w-5xl">
         {/* Breadcrumb & Navigation */}
         <div className="flex items-center space-x-2 mb-6">
-          <Button asChild variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800">
-            <Link href={`/projects/${projectId}`} className="flex items-center gap-1">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="text-slate-500 hover:text-slate-800"
+          >
+            <Link
+              href={`/projects/${projectId}`}
+              className="flex items-center gap-1"
+            >
               <ArrowLeft className="h-4 w-4" /> Back to Project
             </Link>
           </Button>
@@ -415,10 +465,16 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
               </h1>
             </div>
             <p className="text-sm text-slate-500">
-              Project: <span className="font-semibold text-slate-700">{project?.name}</span>
+              Project:{" "}
+              <span className="font-semibold text-slate-700">
+                {project?.name}
+              </span>
             </p>
           </div>
-          <Button onClick={() => openFormModal()} className="bg-indigo-600 hover:bg-indigo-700 shadow-sm shrink-0">
+          <Button
+            onClick={() => openFormModal()}
+            className="bg-indigo-600 hover:bg-indigo-700 shadow-sm shrink-0"
+          >
             <Plus className="mr-2 h-4 w-4" /> Add Root WBS Item
           </Button>
         </div>
@@ -427,21 +483,25 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
         {wbsItems.length === 0 ? (
           <Card className="text-center py-16 border-dashed border-2 border-slate-200 bg-white">
             <CardHeader>
-              <CardTitle className="text-slate-600 text-lg font-medium">Empty Work Breakdown Structure</CardTitle>
+              <CardTitle className="text-slate-600 text-lg font-medium">
+                Empty Work Breakdown Structure
+              </CardTitle>
               <CardDescription className="text-slate-400 max-w-sm mx-auto">
-                No phases or tasks have been defined yet. Get started by adding a root-level phase (e.g. "Phase 1: Design").
+                No phases or tasks have been defined yet. Get started by adding
+                a root-level phase (e.g. "Phase 1: Design").
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={() => openFormModal()} className="bg-indigo-600 hover:bg-indigo-700">
+              <Button
+                onClick={() => openFormModal()}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
                 Create First Item
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {renderTreeNodes(undefined)}
-          </div>
+          <div className="space-y-4">{renderTreeNodes(undefined)}</div>
         )}
       </div>
 
@@ -451,12 +511,12 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
           <Card className="w-full max-w-lg bg-white shadow-xl animate-in zoom-in-95 duration-200">
             <CardHeader className="bg-slate-55 pb-4 border-b border-slate-100">
               <CardTitle className="text-lg font-bold text-slate-800">
-                {editingItem ? 'Edit WBS Item' : 'Add WBS Item'}
+                {editingItem ? "Edit WBS Item" : "Add WBS Item"}
               </CardTitle>
               <CardDescription>
-                {formData.parent_id 
-                  ? `Adding a sub-task under parent phase.` 
-                  : 'Define a root-level task or project phase.'}
+                {formData.parent_id
+                  ? `Adding a sub-task under parent phase.`
+                  : "Define a root-level task or project phase."}
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleFormSubmit}>
@@ -549,22 +609,35 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                   >
                     <option value="">None (Root Level)</option>
                     {wbsItems
-                      .filter(item => !editingItem || item.id !== editingItem.id) // Avoid cyclic referencing
-                      .map(item => (
+                      .filter(
+                        (item) => !editingItem || item.id !== editingItem.id,
+                      ) // Avoid cyclic referencing
+                      .map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.name} (Depth: {wbsItems.filter(i => i.parent_id === item.id).length ? 'Parent' : 'Leaf'})
+                          {item.name} (Depth:{" "}
+                          {wbsItems.filter((i) => i.parent_id === item.id)
+                            .length
+                            ? "Parent"
+                            : "Leaf"}
+                          )
                         </option>
-                      ))
-                    }
+                      ))}
                   </select>
                 </div>
               </CardContent>
               <div className="flex justify-end gap-3 p-6 border-t border-slate-100 bg-slate-50/50">
-                <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsModalOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-                  {editingItem ? 'Save Changes' : 'Create Item'}
+                <Button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700"
+                >
+                  {editingItem ? "Save Changes" : "Create Item"}
                 </Button>
               </div>
             </form>
@@ -582,7 +655,10 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                 Update Task Progress
               </CardTitle>
               <CardDescription>
-                Update the actual progress for task: <span className="font-semibold text-slate-700">{progressUpdateItem.name}</span>
+                Update the actual progress for task:{" "}
+                <span className="font-semibold text-slate-700">
+                  {progressUpdateItem.name}
+                </span>
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleProgressSubmit}>
@@ -610,7 +686,8 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
 
                 <div className="space-y-1">
                   <Label htmlFor="remarks" className="flex items-center gap-1">
-                    <MessageSquare className="h-3.5 w-3.5" /> Progress Log Remarks
+                    <MessageSquare className="h-3.5 w-3.5" /> Progress Log
+                    Remarks
                   </Label>
                   <Input
                     id="remarks"
@@ -621,10 +698,19 @@ export default function ProjectWBSPage({ params }: { params: Promise<PageParams>
                 </div>
               </CardContent>
               <div className="flex justify-end gap-3 p-6 border-t border-slate-100 bg-slate-50/50">
-                <Button type="button" variant="outline" onClick={() => setProgressUpdateItem(null)} disabled={submittingProgress}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setProgressUpdateItem(null)}
+                  disabled={submittingProgress}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1" disabled={submittingProgress}>
+                <Button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1"
+                  disabled={submittingProgress}
+                >
                   {submittingProgress ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" /> Updating...

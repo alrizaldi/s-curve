@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SChartDataPoint, WBSItem, ProgressLog } from "@/types";
+import { SChartDataPoint, WBSItem, ProgressLog, Project } from "@/types";
 import { getWBSItems, getProgressLogs } from "@/actions/wbs";  // Import only getWBSItems and getProgressLogs from wbs
 import { getProjects } from "@/actions/projects";  // Import getProjects from the correct location
 import {
@@ -32,33 +32,51 @@ import { useEffect, useState } from "react";
 export default function SCurvePage() {
   const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>("all"); // "all" for all projects, otherwise project ID
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoading(true);
+        // Get all projects first
+        const allProjects = await getProjects();
+        setProjects(allProjects);
+      } catch (err) {
+        console.error("Error fetching projects:", err);
+        setError(err instanceof Error ? err.message : "Failed to load projects");
+      }
+    };
+
+    fetchProjects();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Get all projects first to determine which ones to include
-        const projects = await getProjects();
-        
-        // For now, we'll get WBS items for all projects, but in the future
-        // we might want to filter by specific project or date range
-        let allWbsItems: WBSItem[] = [];
-        let allProgressLogs: ProgressLog[] = [];
-        
-        // Fetch WBS items for each project
-        for (const project of projects) {
-          const projectWbsItems = await getWBSItems(project.id);
-          allWbsItems = [...allWbsItems, ...projectWbsItems];
-          
-          // Fetch progress logs for this project
-          const projectProgressLogs = await getProgressLogs(project.id);
-          allProgressLogs = [...allProgressLogs, ...projectProgressLogs];
+        let projectWbsItems: WBSItem[] = [];
+        let projectProgressLogs: ProgressLog[] = [];
+
+        if (selectedProject === "all") {
+          // Get all projects to combine data from all projects
+          for (const project of projects) {
+            const wbsItemsForProject = await getWBSItems(project.id);
+            projectWbsItems = [...projectWbsItems, ...wbsItemsForProject];
+            
+            const progressLogsForProject = await getProgressLogs(project.id);
+            projectProgressLogs = [...projectProgressLogs, ...progressLogsForProject];
+          }
+        } else {
+          // Get data for specific project only
+          projectWbsItems = await getWBSItems(selectedProject);
+          projectProgressLogs = await getProgressLogs(selectedProject);
         }
         
-        setWbsItems(allWbsItems);
-        setProgressLogs(allProgressLogs);
+        setWbsItems(projectWbsItems);
+        setProgressLogs(projectProgressLogs);
       } catch (err) {
         console.error("Error fetching S-Curve data:", err);
         setError(err instanceof Error ? err.message : "Failed to load S-Curve data");
@@ -67,8 +85,10 @@ export default function SCurvePage() {
       }
     };
 
-    fetchData();
-  }, []);
+    if (projects.length > 0) {
+      fetchData();
+    }
+  }, [selectedProject, projects]);
 
   // Calculate the S-Curve data using real data
   const plannedData = calculatePlannedCurve(wbsItems);
@@ -132,6 +152,26 @@ export default function SCurvePage() {
       </div>
 
       <div className="container mx-auto max-w-6xl py-8 px-6">
+        {/* Project Selection Dropdown moved to top of main content */}
+        <div className="mb-6">
+          <label htmlFor="project-select" className="block text-sm font-medium text-slate-700 mb-2">
+            Select Project:
+          </label>
+          <select
+            id="project-select"
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-1/2 lg:w-1/3"
+          >
+            <option value="all">All Projects (Combined)</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <Card className="group hover:shadow-lg transition-all duration-300 border border-slate-100 bg-white">
             <CardHeader>
@@ -140,7 +180,9 @@ export default function SCurvePage() {
                 Current Status
               </CardTitle>
               <CardDescription>
-                Overall project progress comparison
+                {selectedProject === "all" 
+                  ? "Overall project progress comparison" 
+                  : `Progress for "${projects.find(p => p.id === selectedProject)?.name}"`}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -177,7 +219,9 @@ export default function SCurvePage() {
                 Status Indicator
               </CardTitle>
               <CardDescription>
-                Project health based on variance
+                {selectedProject === "all" 
+                  ? "Overall project health based on variance" 
+                  : "Project health based on variance"}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -262,7 +306,11 @@ export default function SCurvePage() {
               <TrendingUp className="h-5 w-5 text-indigo-600" />
               Progress Over Time
             </CardTitle>
-            <CardDescription>Planned vs Actual progress curve</CardDescription>
+            <CardDescription>
+              {selectedProject === "all" 
+                ? "Planned vs Actual progress curve (All Projects)" 
+                : `Planned vs Actual progress curve for "${projects.find(p => p.id === selectedProject)?.name}"`}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-96">
@@ -407,6 +455,14 @@ export default function SCurvePage() {
             </CardHeader>
             <CardContent>
               <ul className="list-disc pl-5 space-y-2">
+                <li className="text-slate-600">
+                  Selected Project:{" "}
+                  <span className="font-medium">
+                    {selectedProject === "all" 
+                      ? "All Projects Combined" 
+                      : projects.find(p => p.id === selectedProject)?.name}
+                  </span>
+                </li>
                 <li className="text-slate-600">
                   Total WBS Items Analyzed: <span className="font-medium">{wbsItems.length}</span>
                 </li>

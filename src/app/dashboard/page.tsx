@@ -12,9 +12,34 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Target, TrendingUp, Clock, BarChart3, Calendar } from 'lucide-react';
-import { useProjects } from '@/hooks/useProjects';
-import { Project } from '@/types';
+import {
+  Activity,
+  Target,
+  TrendingUp,
+  Clock,
+  BarChart3,
+  Calendar,
+  Loader2,
+} from "lucide-react";
+import { useProjects } from "@/hooks/useProjects";
+import { Project, WBSItem, ProgressLog, SChartDataPoint } from "@/types";
+import { getWBSItems, getProgressLogs } from "@/actions/wbs";
+import { getProjects as getAllProjects } from "@/actions/projects";
+import {
+  calculatePlannedCurve,
+  calculateActualCurve,
+  combineCurves,
+} from "@/services/scurve";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function DashboardPage() {
   const [session, setSession] = useState<any>(null);
@@ -22,103 +47,144 @@ export default function DashboardPage() {
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const { projects, loading: projectsLoading } = useProjects();
-
-  console.log('DashboardPage: Component rendered, loading:', loading, 'session:', session ? 'exists' : 'none');
+  const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
+  const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
+  const [scurveData, setScurveData] = useState<SChartDataPoint[]>([]);
+  const [scurveLoading, setScurveLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase) {
-      console.error('DashboardPage: Supabase client not available');
+      console.error("DashboardPage: Supabase client not available");
       setLoading(false);
       setInitialized(true);
       return;
     }
-    
-    console.log('DashboardPage: useEffect hook running to check session');
-    
+
     const checkSession = async () => {
-      console.log('DashboardPage: Checking session status...');
       const { data } = await supabase!.auth.getSession(); // Non-null assertion since we check above
-      console.log("DashboardPage: Current session data:", data);
       setSession(data.session);
 
       if (!data.session) {
-        console.log('DashboardPage: No active session, redirecting to login');
         // No active session, redirect to login
         router.push("/auth/login");
       } else {
-        console.log('DashboardPage: Active session found, showing dashboard');
+        console.log("DashboardPage: Active session found, showing dashboard");
       }
 
       setLoading(false);
       setInitialized(true);
-      console.log('DashboardPage: Loading set to false');
     };
 
     checkSession();
 
     // Listen for auth state changes
-    console.log('DashboardPage: Setting up auth state change listener');
     const {
       data: { subscription },
     } = supabase!.auth.onAuthStateChange((_event, session) => {
-      console.log('DashboardPage: Auth state changed, event:', _event, 'session exists:', !!session);
       setSession(session);
       if (!session) {
-        console.log('DashboardPage: Session ended, redirecting to login');
         router.push("/auth/login");
       } else {
-        console.log('DashboardPage: Session established, staying on dashboard');
+        console.log("DashboardPage: Session established, staying on dashboard");
       }
     });
 
     return () => {
-      console.log('DashboardPage: Cleaning up auth state change listener');
       subscription.unsubscribe();
     };
   }, [router]);
 
+  // Fetch S-Curve data when projects are loaded
+  useEffect(() => {
+    const fetchSCurveData = async () => {
+      if (projects.length > 0) {
+        try {
+          setScurveLoading(true);
+          let allWbsItems: WBSItem[] = [];
+          let allProgressLogs: ProgressLog[] = [];
+
+          // Fetch WBS items and progress logs for all projects
+          for (const project of projects) {
+            const projectWbsItems = await getWBSItems(project.id);
+            allWbsItems = [...allWbsItems, ...projectWbsItems];
+
+            const projectProgressLogs = await getProgressLogs(project.id);
+            allProgressLogs = [...allProgressLogs, ...projectProgressLogs];
+          }
+
+          setWbsItems(allWbsItems);
+          setProgressLogs(allProgressLogs);
+
+          // Calculate the S-Curve data
+          const plannedData = calculatePlannedCurve(allWbsItems);
+          const actualData = calculateActualCurve(allProgressLogs, allWbsItems);
+          const combinedData = combineCurves(plannedData, actualData);
+
+          setScurveData(combinedData);
+        } catch (error) {
+          console.error("Error fetching S-Curve data:", error);
+          setScurveData([]);
+        } finally {
+          setScurveLoading(false);
+        }
+      } else {
+        setScurveData([]);
+        setScurveLoading(false);
+      }
+    };
+
+    fetchSCurveData();
+  }, [projects]);
+
   // Calculate project metrics from real data
   const projectMetrics = {
     totalProjects: projects.length,
-    activeProjects: projects.filter(p => p.status === 'Active').length,
-    completedProjects: projects.filter(p => p.status === 'Completed').length,
-    delayedProjects: projects.filter(p => {
+    activeProjects: projects.filter((p) => p.status === "Active").length,
+    completedProjects: projects.filter((p) => p.status === "Completed").length,
+    delayedProjects: projects.filter((p) => {
       const endDate = new Date(p.end_date);
       const currentDate = new Date();
-      return p.status !== 'Completed' && endDate < currentDate;
+      return p.status !== "Completed" && endDate < currentDate;
     }).length,
   };
 
   // Get recent projects with progress (mocking progress for now since it's not in the base project model)
-  const projectProgress = projects.slice(0, 3).map((project: Project, index) => ({
-    id: project.id,
-    name: project.name,
-    progress: Math.floor(Math.random() * 100), // Placeholder - in real app this would come from WBS items
-    status: project.status === 'Active' ? 'On Track' : 
-            project.status === 'Completed' ? 'Completed' : 
-            project.status === 'Cancelled' ? 'Cancelled' : 'On Track',
-    deadline: new Date(project.end_date).toISOString().split('T')[0],
-  }));
+  const projectProgress = projects
+    .slice(0, 3)
+    .map((project: Project, index) => ({
+      id: project.id,
+      name: project.name,
+      progress: Math.floor(Math.random() * 100), // Placeholder - in real app this would come from WBS items
+      status:
+        project.status === "Active"
+          ? "On Track"
+          : project.status === "Completed"
+            ? "Completed"
+            : project.status === "Cancelled"
+              ? "Cancelled"
+              : "On Track",
+      deadline: new Date(project.end_date).toISOString().split("T")[0],
+    }));
 
   // Get upcoming milestones from projects (mocking since we need to fetch them separately)
   const upcomingMilestones = projects
-    .filter(p => p.status === 'Active')
+    .filter((p) => p.status === "Active")
     .slice(0, 3)
-    .flatMap(project => [
+    .flatMap((project) => [
       {
         id: `${project.id}-milestone`,
         name: `Completion of ${project.name}`,
         project: project.name,
-        date: new Date(project.end_date).toISOString().split('T')[0],
-        days: Math.ceil((new Date(project.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-      }
+        date: new Date(project.end_date).toISOString().split("T")[0],
+        days: Math.ceil(
+          (new Date(project.end_date).getTime() - new Date().getTime()) /
+            (1000 * 60 * 60 * 24),
+        ),
+      },
     ]);
-
-  console.log('DashboardPage: Dashboard rendering - loading:', loading, 'session exists:', !!session);
 
   // Show loading state while checking session
   if (loading || !initialized || projectsLoading) {
-    console.log('DashboardPage: Showing loading state');
     return (
       <div className="min-h-screen bg-slate-50/50">
         <div className="container mx-auto max-w-6xl py-8 px-6">
@@ -136,11 +202,8 @@ export default function DashboardPage() {
   // Don't render the dashboard if not authenticated
   // The redirect happens in useEffect
   if (!session) {
-    console.log('DashboardPage: No session, returning null (redirect should have happened)');
     return null;
   }
-
-  console.log('DashboardPage: Rendering dashboard content with metrics:', projectMetrics);
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -149,7 +212,10 @@ export default function DashboardPage() {
         <div className="container mx-auto max-w-6xl">
           <div className="flex items-center space-x-3 mb-3">
             <BarChart3 className="h-8 w-8 text-blue-200 animate-pulse" />
-            <Badge variant="secondary" className="bg-blue-500/30 text-blue-100 hover:bg-blue-500/40 border-blue-400/20">
+            <Badge
+              variant="secondary"
+              className="bg-blue-500/30 text-blue-100 hover:bg-blue-500/40 border-blue-400/20"
+            >
               Dashboard
             </Badge>
           </div>
@@ -168,7 +234,9 @@ export default function DashboardPage() {
           <Card className="group hover:shadow-lg transition-all duration-300 border border-slate-100 bg-white">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardDescription className="text-slate-500">Total Projects</CardDescription>
+                <CardDescription className="text-slate-500">
+                  Total Projects
+                </CardDescription>
                 <div className="p-2 rounded-lg bg-blue-100">
                   <Activity className="h-5 w-5 text-blue-600" />
                 </div>
@@ -180,7 +248,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-xs text-slate-400 flex items-center">
                 <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                {projectMetrics.totalProjects > 0 ? '+0' : 'No projects yet'}
+                {projectMetrics.totalProjects > 0 ? "+0" : "No projects yet"}
               </div>
             </CardContent>
           </Card>
@@ -188,7 +256,9 @@ export default function DashboardPage() {
           <Card className="group hover:shadow-lg transition-all duration-300 border border-slate-100 bg-white">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardDescription className="text-slate-500">Active Projects</CardDescription>
+                <CardDescription className="text-slate-500">
+                  Active Projects
+                </CardDescription>
                 <div className="p-2 rounded-lg bg-green-100">
                   <Target className="h-5 w-5 text-green-600" />
                 </div>
@@ -199,9 +269,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-slate-400">
-                {projectMetrics.totalProjects > 0 
-                  ? `${Math.round((projectMetrics.activeProjects / projectMetrics.totalProjects) * 100)}% of total` 
-                  : 'N/A'}
+                {projectMetrics.totalProjects > 0
+                  ? `${Math.round((projectMetrics.activeProjects / projectMetrics.totalProjects) * 100)}% of total`
+                  : "N/A"}
               </div>
             </CardContent>
           </Card>
@@ -209,7 +279,9 @@ export default function DashboardPage() {
           <Card className="group hover:shadow-lg transition-all duration-300 border border-slate-100 bg-white">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardDescription className="text-slate-500">Completed</CardDescription>
+                <CardDescription className="text-slate-500">
+                  Completed
+                </CardDescription>
                 <div className="p-2 rounded-lg bg-emerald-100">
                   <TrendingUp className="h-5 w-5 text-emerald-600" />
                 </div>
@@ -220,9 +292,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-slate-400">
-                {projectMetrics.totalProjects > 0 
-                  ? `${Math.round((projectMetrics.completedProjects / projectMetrics.totalProjects) * 100)}% success rate` 
-                  : 'N/A'}
+                {projectMetrics.totalProjects > 0
+                  ? `${Math.round((projectMetrics.completedProjects / projectMetrics.totalProjects) * 100)}% success rate`
+                  : "N/A"}
               </div>
             </CardContent>
           </Card>
@@ -230,7 +302,9 @@ export default function DashboardPage() {
           <Card className="group hover:shadow-lg transition-all duration-300 border border-slate-100 bg-white">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardDescription className="text-slate-500">Delayed</CardDescription>
+                <CardDescription className="text-slate-500">
+                  Delayed
+                </CardDescription>
                 <div className="p-2 rounded-lg bg-amber-100">
                   <Clock className="h-5 w-5 text-amber-600" />
                 </div>
@@ -241,7 +315,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-slate-400">
-                {projectMetrics.delayedProjects > 0 ? 'Requires attention' : 'All on track'}
+                {projectMetrics.delayedProjects > 0
+                  ? "Requires attention"
+                  : "All on track"}
               </div>
             </CardContent>
           </Card>
@@ -265,13 +341,18 @@ export default function DashboardPage() {
                   {projectProgress.map((project) => (
                     <div key={project.id}>
                       <div className="flex justify-between mb-1">
-                        <span className="font-medium text-slate-700">{project.name}</span>
+                        <span className="font-medium text-slate-700">
+                          {project.name}
+                        </span>
                         <span className="text-sm text-slate-500">
                           {project.progress}%
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Progress value={project.progress} className="w-full h-2" />
+                        <Progress
+                          value={project.progress}
+                          className="w-full h-2"
+                        />
                         <Badge
                           variant={
                             project.status === "On Track"
@@ -294,7 +375,10 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-center py-8 text-slate-500">
                   <p>No active projects yet</p>
-                  <a href="/projects/new" className="text-blue-600 hover:underline inline-flex items-center gap-1 mt-2 block">
+                  <a
+                    href="/projects/new"
+                    className="text-blue-600 hover:underline inline-flex items-center gap-1 mt-2 block"
+                  >
                     Create your first project <Activity className="h-4 w-4" />
                   </a>
                 </div>
@@ -316,19 +400,25 @@ export default function DashboardPage() {
                   {upcomingMilestones.map((milestone) => (
                     <div
                       key={milestone.id}
-                      className="flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100/50 hover:bg-slate-50 transition-colors"
+                      className="flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border-slate-100/50 hover:bg-slate-50 transition-colors"
                     >
                       <div>
-                        <div className="font-medium text-slate-700">{milestone.name}</div>
+                        <div className="font-medium text-slate-700">
+                          {milestone.name}
+                        </div>
                         <div className="text-sm text-slate-500">
                           {milestone.project}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-medium text-slate-700">{milestone.date}</div>
+                        <div className="font-medium text-slate-700">
+                          {milestone.date}
+                        </div>
                         <div className="text-sm text-slate-400 flex items-center justify-end gap-1">
                           <Clock className="h-3 w-3" />
-                          {milestone.days > 0 ? `${milestone.days} days left` : 'Due soon!'}
+                          {milestone.days > 0
+                            ? `${milestone.days} days left`
+                            : "Due soon!"}
                         </div>
                       </div>
                     </div>
@@ -337,7 +427,10 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-center py-8 text-slate-500">
                   <p>No upcoming milestones</p>
-                  <a href="/projects" className="text-emerald-600 hover:underline inline-flex items-center gap-1 mt-2 block">
+                  <a
+                    href="/projects"
+                    className="text-emerald-600 hover:underline inline-flex items-center gap-1 mt-2 block"
+                  >
                     Manage projects <Clock className="h-4 w-4" />
                   </a>
                 </div>
@@ -358,25 +451,91 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-80 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50">
-              <div className="text-center">
-                <TrendingUp className="h-12 w-12 text-blue-400 mx-auto mb-3" />
-                <p className="text-slate-500 mb-3">
-                  {projectMetrics.totalProjects > 0 
-                    ? "S-Curve visualization would appear here." 
-                    : "Create projects to see S-Curve visualization."}
-                </p>
-                {projectMetrics.totalProjects > 0 ? (
-                  <a href="/scurve" className="inline-flex items-center gap-1 text-blue-600 hover:underline font-medium" onClick={() => console.log('DashboardPage: Clicked S-Curve link')}>
-                    View Full S-Curve <TrendingUp className="h-4 w-4" />
-                  </a>
-                ) : (
-                  <a href="/projects/new" className="inline-flex items-center gap-1 text-blue-600 hover:underline font-medium">
-                    Create Project <Activity className="h-4 w-4" />
-                  </a>
-                )}
+            {scurveLoading ? (
+              <div className="h-80 flex items-center justify-center">
+                <div className="flex flex-col items-center">
+                  <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-4" />
+                  <p className="text-slate-600">Loading S-Curve data...</p>
+                </div>
               </div>
-            </div>
+            ) : scurveData.length > 0 ? (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={scurveData}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(value) =>
+                        new Date(value).toLocaleDateString()
+                      }
+                    />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip
+                      formatter={(value) => [`${value}%`, "Progress"]}
+                      labelFormatter={(value) =>
+                        `Date: ${new Date(value).toLocaleDateString()}`
+                      }
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="planned"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name="Planned Progress"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="actual"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name="Actual Progress"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-80 flex items-center justify-center border border-slate-200 rounded-lg bg-slate-50">
+                <div className="text-center">
+                  <TrendingUp className="h-12 w-12 text-blue-400 mx-auto mb-3" />
+                  <p className="text-slate-500 mb-3">
+                    {projectMetrics.totalProjects > 0
+                      ? "No progress data available yet."
+                      : "Create projects to see S-Curve visualization."}
+                  </p>
+                  {projectMetrics.totalProjects > 0 ? (
+                    <a
+                      href="/scurve"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:underline font-medium"
+                      onClick={() =>
+                        console.log("DashboardPage: Clicked S-Curve link")
+                      }
+                    >
+                      View Full S-Curve <TrendingUp className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <a
+                      href="/projects/new"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:underline font-medium"
+                    >
+                      Create Project <Activity className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
