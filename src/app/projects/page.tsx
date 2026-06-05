@@ -4,11 +4,32 @@ import { useProjects } from '@/hooks/useProjects';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, FolderOpen, Building2, Calendar, User } from 'lucide-react';
+import { PlusCircle, FolderOpen, Building2, Calendar, User, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ProjectsPage() {
   const { projects, loading, error, refetch } = useProjects();
+
+  // Function to create a sample project with halfway progress
+  const createSampleProject = async () => {
+    try {
+      const response = await fetch('/api/sample-project', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(result.message);
+        refetch(); // Refresh the project list
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
+      }
+    } catch (err) {
+      console.error('Error creating sample project:', err);
+      alert('An error occurred while creating the sample project');
+    }
+  };
 
   if (loading) {
     return (
@@ -111,11 +132,19 @@ export default function ProjectsPage() {
             <h2 className="text-2xl font-bold text-slate-800">All Projects</h2>
             <p className="text-slate-500">Manage your project portfolio</p>
           </div>
-          <Button asChild className="bg-violet-600 hover:bg-violet-700 flex items-center gap-2">
-            <Link href="/projects/new">
-              <PlusCircle className="h-4 w-4" /> Create Project
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={createSampleProject} 
+              className="bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2"
+            >
+              <RotateCcw className="h-4 w-4" /> Create Sample Project
+            </Button>
+            <Button asChild className="bg-violet-600 hover:bg-violet-700 flex items-center gap-2">
+              <Link href="/projects/new">
+                <PlusCircle className="h-4 w-4" /> Create Project
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {projects.length === 0 ? (

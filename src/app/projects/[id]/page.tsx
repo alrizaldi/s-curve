@@ -42,6 +42,7 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { ExportButton, SCurveExportButton } from "@/components/ui/export-button";
+import { deleteProject } from "@/actions/projects";
 
 type PageParams = {
   id: string;
@@ -351,6 +352,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
                   size="sm"
                   className="border-purple-100 text-purple-700 hover:bg-purple-50 justify-start"
                 />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to delete this project? This action cannot be undone and will also delete all associated WBS items, milestones, and progress logs.")) {
+                      try {
+                        await deleteProject(project.id);
+                        window.location.href = '/projects'; // Redirect to projects list
+                      } catch (error) {
+                        console.error('Error deleting project:', error);
+                        alert('An error occurred while deleting the project');
+                      }
+                    }
+                  }}
+                  className="border-red-100 text-red-700 hover:bg-red-50 justify-start mt-2"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" /> Delete Project
+                </Button>
               </div>
             </CardContent>
           </Card>
