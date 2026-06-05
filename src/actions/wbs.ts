@@ -1,7 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { WBSItem, WBSItemFormValues, WBSItemStatus, ProgressLog } from "@/types";
+import {
+  WBSItem,
+  WBSItemFormValues,
+  WBSItemStatus,
+  ProgressLog,
+} from "@/types";
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
 
@@ -29,10 +34,16 @@ export async function getWBSItems(projectId: string): Promise<WBSItem[]> {
       ...item,
       planned_start: item.planned_start
         ? new Date(item.planned_start)
-        : new Date(),
-      planned_end: item.planned_end ? new Date(item.planned_end) : new Date(),
-      created_at: item.created_at ? new Date(item.created_at) : new Date(),
-      updated_at: item.updated_at ? new Date(item.updated_at) : new Date(),
+        : new Date().toISOString(),
+      planned_end: item.planned_end
+        ? new Date(item.planned_end)
+        : new Date().toISOString(),
+      created_at: item.created_at
+        ? new Date(item.created_at)
+        : new Date().toISOString(),
+      updated_at: item.updated_at
+        ? new Date(item.updated_at)
+        : new Date().toISOString(),
     } as WBSItem;
   });
 
@@ -64,8 +75,8 @@ export async function createWBSItem(
         id: uuidv4(), // Generate a UUID for the new WBS item
         ...itemData,
         project_id: projectId,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     ])
     .select()
@@ -116,25 +127,32 @@ export async function updateWBSItem(
 
     if (childError) {
       console.error("Error checking WBS item children:", childError);
+      // Continue anyway, but log the error
     }
 
     if (children && children.length > 0) {
       throw new Error("Only leaf nodes can have progress updated directly.");
     }
 
-    // Insert progress log
-    const { error: logError } = await supabase.from("ProgressLog").insert([
-      {
-        project_id: projectId,
-        wbs_item_id: id,
-        progress: itemData.progress,
-        remarks: remarks || "Progress updated",
-        created_by: user.id,
-      },
-    ]);
+    // Insert progress log for leaf nodes
+    const progressLog = {
+      id: uuidv4(),
+      project_id: projectId,
+      wbs_item_id: id,
+      progress: itemData.progress,
+      remarks: remarks || "Progress updated",
+      created_by: user.id,
+      created_at: new Date().toISOString(),
+    };
+
+    const { error: logError } = await supabase
+      .from("ProgressLog")
+      .insert([progressLog]);
 
     if (logError) {
       console.error("Error writing progress log:", logError);
+      // Don't throw error here as the WBS item update should still succeed
+      // The progress log is for tracking purposes but shouldn't prevent updates
     }
   }
 
@@ -248,11 +266,11 @@ export async function getProgressLogs(projectId?: string) {
   const supabase = await createClient();
 
   let query = supabase.from("ProgressLog").select("*");
-  
+
   if (projectId) {
     query = query.eq("project_id", projectId);
   }
-  
+
   const { data, error } = await query.order("created_at", { ascending: false }); // Order by newest first
 
   if (error) {
@@ -263,7 +281,9 @@ export async function getProgressLogs(projectId?: string) {
   // Convert date strings to Date objects
   return (data || []).map((log) => ({
     ...log,
-    created_at: log.created_at ? new Date(log.created_at) : new Date(),
+    created_at: log.created_at
+      ? new Date(log.created_at)
+      : new Date().toISOString(),
   }));
 }
 
