@@ -276,13 +276,13 @@ export default function ProjectsPage() {
                             Manage WBS
                           </Link>
                         </Button>
-                        <ProjectExportButton
+                        {/* <ProjectExportButton
                           projectId={project.id}
                           projectName={project.name}
                           variant="outline" // Added to match other buttons
                           size="sm"         // Added to match other buttons
                           className="h-7 px-2.5 border-slate-200 text-slate-700 hover:bg-slate-50" // Updated to match other buttons
-                        />
+                        /> */}
                       </div>
                     </div>
                   </div>
