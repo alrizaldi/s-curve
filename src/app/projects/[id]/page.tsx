@@ -1,57 +1,69 @@
 "use client";
 
 import { getProjectById } from "@/actions/projects";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Project, WBSItem, ProgressLog, Milestone } from "@/types";
-import { calculatePlannedCurve, calculateActualCurve, combineCurves } from "@/services/scurve";
+import {
+  calculatePlannedCurve,
+  calculateActualCurve,
+  combineCurves,
+} from "@/services/scurve";
 import { useState, useEffect, use, useRef } from "react";
 import { getWBSItems, getProgressLogs } from "@/actions/wbs";
 import { getMilestones } from "@/actions/milestones";
-import { 
-  FolderKanban, 
-  Flag, 
-  Users, 
-  Calendar, 
-  CheckCircle2, 
-  Clock, 
-  AlertTriangle, 
+import {
+  FolderKanban,
+  Flag,
+  Users,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
   Activity,
   TrendingUp,
   Target,
-  Sliders
+  Sliders,
 } from "lucide-react";
 import Link from "next/link";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
-import { ExportButton, SCurveExportButton } from "@/components/ui/export-button";
+import {
+  ExportButton,
+  SCurveExportButton,
+  ProjectExportButton,
+} from "@/components/ui/export-button";
 import { deleteProject } from "@/actions/projects";
 
 type PageParams = {
   id: string;
 };
 
-export default function ProjectDetailPage({ params }: { params: Promise<PageParams> }) {
+export default function ProjectDetailPage({
+  params,
+}: {
+  params: Promise<PageParams>;
+}) {
   const resolvedParams = use(params);
   const { id: projectId } = resolvedParams;
-  
+
   const [project, setProject] = useState<Project | null>(null);
   const [wbsItems, setWbsItems] = useState<WBSItem[]>([]);
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
@@ -67,12 +79,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [projectData, wbsItemsData, progressLogsData, milestonesData] = await Promise.all([
-          getProjectById(projectId),
-          getWBSItems(projectId),
-          getProgressLogs(projectId),
-          getMilestones(projectId)
-        ]);
+        const [projectData, wbsItemsData, progressLogsData, milestonesData] =
+          await Promise.all([
+            getProjectById(projectId),
+            getWBSItems(projectId),
+            getProgressLogs(projectId),
+            getMilestones(projectId),
+          ]);
 
         setProject(projectData);
         setWbsItems(wbsItemsData);
@@ -334,7 +347,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
                     <Flag className="h-4 w-4" /> Manage Milestones
                   </Link>
                 </Button>
-                <ExportButton
+                {/* <ExportButton
                   project={project}
                   wbsItems={wbsItems}
                   milestones={milestones}
@@ -342,27 +355,38 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
                   variant="outline"
                   size="sm"
                   className="border-blue-100 text-blue-700 hover:bg-blue-50 justify-start mt-2"
-                />
+                /> */}
                 <SCurveExportButton
                   project={project}
                   wbsItems={wbsItems}
                   progressLogs={progressLogs}
-                  chartRef={scurveChartRef}  // Pass the chart ref
+                  chartRef={scurveChartRef} // Pass the chart ref
                   variant="outline"
                   size="sm"
                   className="border-purple-100 text-purple-700 hover:bg-purple-50 justify-start"
+                />
+                <ProjectExportButton
+                  projectId={project.id}
+                  projectName={project.name}
+                  variant="outline" // Changed to match other buttons
+                  size="sm" // Changed to match other buttons
+                  className="border-blue-100 text-blue-700 hover:bg-blue-50 justify-start" // Updated to match other buttons style
                 />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    if (confirm("Are you sure you want to delete this project? This action cannot be undone and will also delete all associated WBS items, milestones, and progress logs.")) {
+                    if (
+                      confirm(
+                        "Are you sure you want to delete this project? This action cannot be undone and will also delete all associated WBS items, milestones, and progress logs.",
+                      )
+                    ) {
                       try {
                         await deleteProject(project.id);
-                        window.location.href = '/projects'; // Redirect to projects list
+                        window.location.href = "/projects"; // Redirect to projects list
                       } catch (error) {
-                        console.error('Error deleting project:', error);
-                        alert('An error occurred while deleting the project');
+                        console.error("Error deleting project:", error);
+                        alert("An error occurred while deleting the project");
                       }
                     }
                   }}
@@ -388,7 +412,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
                   project={project}
                   wbsItems={wbsItems}
                   progressLogs={progressLogs}
-                  chartRef={scurveChartRef}  // Pass the chart ref
+                  chartRef={scurveChartRef} // Pass the chart ref
                   variant="outline"
                   size="sm"
                 />
@@ -399,7 +423,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
             </CardHeader>
             <CardContent>
               {scurveData.length > 0 ? (
-                <div className="h-80" ref={scurveChartRef}>  {/* Add ref to chart container */}
+                <div className="h-80" ref={scurveChartRef}>
+                  {" "}
+                  {/* Add ref to chart container */}
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={scurveData}
@@ -466,7 +492,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
           </Card>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as "wbs" | "milestones")} className="flex flex-col space-y-4 mt-8">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value: string) =>
+            setActiveTab(value as "wbs" | "milestones")
+          }
+          className="flex flex-col space-y-4 mt-8"
+        >
           <TabsList className="grid w-full grid-cols-2 bg-slate-100 border border-slate-200 p-1 rounded-lg self-start">
             <TabsTrigger
               value="wbs"
@@ -546,7 +578,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
               ) : (
                 <div className="space-y-4">
                   {wbsItems
-                    .filter(item => !item.parent_id) // Only show root items
+                    .filter((item) => !item.parent_id) // Only show root items
                     .map((item) => (
                       <Card
                         key={item.id}
@@ -607,7 +639,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<PagePara
                               </span>
                               <span>
                                 End:{" "}
-                                {new Date(item.planned_end).toLocaleDateString()}
+                                {new Date(
+                                  item.planned_end,
+                                ).toLocaleDateString()}
                               </span>
                             </div>
                           </div>

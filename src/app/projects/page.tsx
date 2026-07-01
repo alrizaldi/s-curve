@@ -17,8 +17,10 @@ import {
   Calendar,
   User,
   RotateCcw,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
+import { ProjectExportButton } from "@/components/ui/export-button";
 
 export default function ProjectsPage() {
   const { projects, loading, error, refetch } = useProjects();
@@ -263,16 +265,25 @@ export default function ProjectsPage() {
                           </svg>
                         </Link>
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        asChild
-                        className="border-emerald-100 text-emerald-700 hover:bg-emerald-50"
-                      >
-                        <Link href={`/projects/${project.id}/wbs`}>
-                          Manage WBS
-                        </Link>
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                          className="border-emerald-100 text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <Link href={`/projects/${project.id}/wbs`}>
+                            Manage WBS
+                          </Link>
+                        </Button>
+                        <ProjectExportButton
+                          projectId={project.id}
+                          projectName={project.name}
+                          variant="outline" // Added to match other buttons
+                          size="sm"         // Added to match other buttons
+                          className="h-7 px-2.5 border-slate-200 text-slate-700 hover:bg-slate-50" // Updated to match other buttons
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardContent>

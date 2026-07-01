@@ -25,6 +25,117 @@ const safeDateToISO = (date: Date | string | undefined | null, defaultValue: str
   return defaultValue;
 };
 
+export const exportProjectToExcel = async (projectId: string, projectName: string) => {
+  try {
+    // Import project details with all related data
+    const { getProjectWithDetails } = await import('@/actions/projects');
+    const projectData = await getProjectWithDetails(projectId);
+
+    // Dynamically import xlsx to avoid SSR issues
+    const xlsxModule = await import('xlsx');
+    const XLSX = xlsxModule.default || xlsxModule;
+
+    if (!XLSX || typeof XLSX.utils === 'undefined') {
+      throw new Error('XLSX library is not properly loaded');
+    }
+
+    // Create a new workbook
+    const wb = XLSX.utils.book_new();
+
+    // Export project details sheet
+    const projectDataArray = [{
+      'ID': projectData.project.id,
+      'Name': projectData.project.name,
+      'Description': projectData.project.description || '',
+      'Start Date': safeDateToString(projectData.project.start_date),
+      'End Date': safeDateToString(projectData.project.end_date),
+      'Status': projectData.project.status,
+      'Created By': projectData.project.created_by,
+      'Created At': safeDateToISO(projectData.project.created_at),
+      'Updated At': safeDateToISO(projectData.project.updated_at)
+    }];
+
+    const projectWs = XLSX.utils.json_to_sheet(projectDataArray);
+    XLSX.utils.book_append_sheet(wb, projectWs, 'Project_Details');
+
+    // Export WBS items sheet
+    if (projectData.wbsItems && projectData.wbsItems.length > 0) {
+      const wbsData = projectData.wbsItems.map((wbsItem: any) => ({
+        'ID': wbsItem.id,
+        'Project ID': wbsItem.project_id,
+        'Parent ID': wbsItem.parent_id || '',
+        'Name': wbsItem.name,
+        'Description': wbsItem.description || '',
+        'Weight': wbsItem.weight,
+        'Progress': wbsItem.progress,
+        'Planned Start': safeDateToString(wbsItem.planned_start),
+        'Planned End': safeDateToString(wbsItem.planned_end),
+        'Status': wbsItem.status,
+        'Sort Order': wbsItem.sort_order,
+        'Created At': safeDateToISO(wbsItem.created_at),
+        'Updated At': safeDateToISO(wbsItem.updated_at)
+      }));
+
+      const wbsWs = XLSX.utils.json_to_sheet(wbsData);
+      XLSX.utils.book_append_sheet(wb, wbsWs, 'WBS_Items');
+    }
+
+    // Export milestones sheet
+    if (projectData.milestones && projectData.milestones.length > 0) {
+      const milestonesData = projectData.milestones.map((milestone: any) => ({
+        'ID': milestone.id,
+        'Project ID': milestone.project_id,
+        'Name': milestone.name,
+        'Description': milestone.description || '',
+        'Target Date': safeDateToString(milestone.due_date),
+        'Status': milestone.status,
+        'Achieved Date': safeDateToString(milestone.completed_date),
+        'Created At': safeDateToISO(milestone.created_at),
+        'Updated At': safeDateToISO(milestone.updated_at)
+      }));
+
+      const milestoneWs = XLSX.utils.json_to_sheet(milestonesData);
+      XLSX.utils.book_append_sheet(wb, milestoneWs, 'Milestones');
+    }
+
+    // Export progress logs sheet
+    if (projectData.progressLogs && projectData.progressLogs.length > 0) {
+      const logsData = projectData.progressLogs.map((log: any) => ({
+        'ID': log.id,
+        'Project ID': log.project_id,
+        'WBS Item ID': log.wbs_item_id,
+        'Progress': log.progress,
+        'Remarks': log.remarks || '',
+        'Created By': log.created_by,
+        'Created At': safeDateToISO(log.created_at)
+      }));
+
+      const logWs = XLSX.utils.json_to_sheet(logsData);
+      XLSX.utils.book_append_sheet(wb, logWs, 'Progress_Logs');
+    }
+
+    // Export baselines sheet
+    if (projectData.baselines && projectData.baselines.length > 0) {
+      const baselinesData = projectData.baselines.map((baseline: any) => ({
+        'ID': baseline.id,
+        'Project ID': baseline.project_id,
+        'Baseline Name': baseline.baseline_name,
+        'Created At': safeDateToISO(baseline.created_at)
+        // Note: snapshot field contains JSON data which is not exported to avoid complexity in Excel
+      }));
+
+      const baselineWs = XLSX.utils.json_to_sheet(baselinesData);
+      XLSX.utils.book_append_sheet(wb, baselineWs, 'Baselines');
+    }
+
+    // Write the workbook to a file
+    XLSX.writeFile(wb, `${projectName.replace(/\s+/g, '_')}_Complete_Project_Data.xlsx`);
+  } catch (error) {
+    console.error('Error exporting project to Excel:', error);
+    throw new Error('Failed to export project data to Excel');
+  }
+};
+
 export const exportToExcel = async (data: any, fileName: string) => {
   try {
     // Dynamically import xlsx to avoid SSR issues

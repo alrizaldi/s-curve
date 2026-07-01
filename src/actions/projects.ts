@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { Project, ProjectFormValues } from "@/types";
+import { Project, ProjectFormValues, WBSItem, Milestone, ProgressLog, Baseline } from "@/types";
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
 
@@ -164,3 +164,119 @@ export async function getProjectById(id: string): Promise<Project> {
 
   return data as Project;
 }
+
+/**
+ * Fetch a single project by ID with all related data
+ */
+export async function getProjectWithDetails(id: string) {
+  const supabase = await createClient();
+
+  // Get the project
+  const { data: project, error: projectError } = await supabase
+    .from("Project")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (projectError) {
+    console.error("Error fetching project:", projectError);
+    throw new Error("Failed to fetch project");
+  }
+
+  // Get WBS items for the project
+  const { data: wbsItems, error: wbsError } = await supabase
+    .from("WBSItem")
+    .select("*")
+    .eq("project_id", id)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (wbsError) {
+    console.error("Error fetching WBS items:", wbsError);
+    throw new Error("Failed to fetch WBS items");
+  }
+
+  // Get milestones for the project
+  const { data: milestones, error: milestoneError } = await supabase
+    .from("Milestone")
+    .select("*")
+    .eq("project_id", id)
+    .order("due_date", { ascending: true });
+
+  if (milestoneError) {
+    console.error("Error fetching milestones:", milestoneError);
+    throw new Error("Failed to fetch milestones");
+  }
+
+  // Get progress logs for the project
+  const { data: progressLogs, error: logError } = await supabase
+    .from("ProgressLog")
+    .select("*")
+    .eq("project_id", id)
+    .order("created_at", { ascending: false });
+
+  if (logError) {
+    console.error("Error fetching progress logs:", logError);
+    throw new Error("Failed to fetch progress logs");
+  }
+
+  // Get baselines for the project
+  const { data: baselines, error: baselineError } = await supabase
+    .from("Baseline")
+    .select("*")
+    .eq("project_id", id)
+    .order("created_at", { ascending: false });
+
+  if (baselineError) {
+    console.error("Error fetching baselines:", baselineError);
+    // Don't throw error, as baselines might not exist yet
+    console.warn("Could not fetch baselines for project:", baselineError);
+  }
+
+  // Convert date strings to Date objects for all entities
+  const convertedWBSItems = (wbsItems || []).map((item) => ({
+    ...item,
+    planned_start: item.planned_start
+      ? new Date(item.planned_start)
+      : new Date().toISOString(),
+    planned_end: item.planned_end
+      ? new Date(item.planned_end)
+      : new Date().toISOString(),
+    created_at: item.created_at
+      ? new Date(item.created_at)
+      : new Date().toISOString(),
+    updated_at: item.updated_at
+      ? new Date(item.updated_at)
+      : new Date().toISOString(),
+  }));
+
+  const convertedMilestones = (milestones || []).map((milestone) => ({
+    ...milestone,
+    due_date: new Date(milestone.due_date),
+    completed_date: milestone.completed_date ? new Date(milestone.completed_date) : undefined,
+    created_at: new Date(milestone.created_at),
+    updated_at: new Date(milestone.updated_at),
+  }));
+
+  const convertedProgressLogs = (progressLogs || []).map((log) => ({
+    ...log,
+    created_at: log.created_at
+      ? new Date(log.created_at)
+      : new Date().toISOString(),
+  }));
+
+  const convertedBaselines = (baselines || []).map((baseline) => ({
+    ...baseline,
+    created_at: new Date(baseline.created_at),
+  }));
+
+  return {
+    project: project as Project,
+    wbsItems: convertedWBSItems as WBSItem[],
+    milestones: convertedMilestones as Milestone[],
+    progressLogs: convertedProgressLogs as ProgressLog[],
+    baselines: convertedBaselines as Baseline[],
+  };
+}
+
+// Remove the duplicate export statement since functions are already exported individually
